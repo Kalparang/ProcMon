@@ -40,7 +40,7 @@ AddReg           = ProcMonDriver.AddRegistry
 ;HKR,,"SupportedFeatures",0x00010001,0x3
 HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
 HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
-;HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
+HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
 ;HKR,,"Extensions",0x00010000,"exe","doc","txt","bat","cmd","inf"
 
 [ProcMonDriver.DriverFiles]
@@ -69,5 +69,5 @@ DriverName="ProcMonDriver"
 ;Instances specific information.
 DefaultInstance         = "ProcMonDriver Instance"
 Instance1.Name          = "ProcMonDriver Instance"
-Instance1.Altitude      = "265000"
+Instance1.Altitude      = "286020"
 Instance1.Flags         = 0x0          ; Allow all attachments
