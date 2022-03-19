@@ -23,6 +23,7 @@ Environment:
 #include <dontuse.h>
 #include <suppress.h>
 #include "FileFilter.h"
+#include "common.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -162,6 +163,8 @@ Return Value:
     Returns STATUS_SUCCESS.
 --*/
 {
+    UNREFERENCED_PARAMETER(RegistryPath);
+
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING uniString;
     PSECURITY_DESCRIPTOR sd;
@@ -174,6 +177,14 @@ Return Value:
     //
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+
+    //CallBack에서 Process의 이름을 찾기 위해 현재 Process의 Offset 찾기
+    if (TRUE != SetProcessNameOffset())
+    {
+        DbgPrint("[ProcMon] SetProcessNameOffset() failed.\nProcess 이름이 표시되지 않습니다.\n");
+    }
+
+    drv_debug_print(DPFLTR_INFO_LEVEL, __FUNCTION__, "DriverEntry");
 
     //
     //  Register with filter manager.
@@ -193,15 +204,18 @@ Return Value:
     // Obtain the extensions to scan from the registry
     //
 
-    status = ScannerInitializeScannedExtensions(RegistryPath);
+    //status = ScannerInitializeScannedExtensions(RegistryPath);
 
-    if (!NT_SUCCESS(status)) {
+    //if (!NT_SUCCESS(status)) {
 
-        status = STATUS_SUCCESS;
+    //    status = STATUS_SUCCESS;
 
-        ScannedExtensions = &ScannedExtensionDefault;
-        ScannedExtensionCount = 1;
-    }
+    //    ScannedExtensions = &ScannedExtensionDefault;
+    //    ScannedExtensionCount = 1;
+    //}
+
+    ScannedExtensions = &ScannedExtensionDefault;
+    ScannedExtensionCount = 1;
 
     //
     //  Create a communication port.
@@ -833,6 +847,7 @@ Return Value:
 
 --*/
 {
+    UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext = NULL);
 
@@ -848,6 +863,44 @@ Return Value:
 
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
+
+    // 
+//	I/O 대상 파일명을 구한다.
+// 
+//
+    PFLT_FILE_NAME_INFORMATION FileNameInfo = NULL;
+    NTSTATUS status = FltGetFileNameInformation(Data,
+        FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_DEFAULT,
+        &FileNameInfo);
+    if (!NT_SUCCESS(status))
+    {
+        drv_debug_print(DPFLTR_ERROR_LEVEL, __FUNCTION__,
+            "FltGetFileNameInformation() failed. status=0x%08x",
+            status);
+
+        ASSERT(NULL == FileNameInfo);
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    //
+    //	FltParseFileNameInformation 는 MSDN을 꼭 봐요~~
+    //	여기서는 나름 중요합니다~
+    //
+    status = FltParseFileNameInformation(FileNameInfo);
+    if (!NT_SUCCESS(status))
+    {
+        drv_debug_print(DPFLTR_ERROR_LEVEL, __FUNCTION__,
+            "FltParseFileNameInformation() failed. status=0x%08x",
+            status);
+
+        FltReleaseFileNameInformation(FileNameInfo);
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    drv_debug_print(DPFLTR_INFO_LEVEL, __FUNCTION__,
+        "%wZ.%wZ", FileNameInfo->Name, FileNameInfo->Extension);
+
+    FltReleaseFileNameInformation(FileNameInfo);
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
