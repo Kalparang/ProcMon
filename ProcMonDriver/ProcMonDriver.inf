@@ -7,18 +7,50 @@ Signature="$WINDOWS NT$"
 Class=System
 ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%ManufacturerName%
-DriverVer=
+DriverVer=03/19/2022,0.0.0.1
 CatalogFile=ProcMonDriver.cat
 PnpLockDown=1
 
 [DestinationDirs]
-DefaultDestDir = 12
+DefaultDestDir = 12	;%windir%\system32\drivers
 
+[DefaultInstall]
+OptionDesc          = %ServiceDescription%
+CopyFiles           = ProcMonDriver.DriverFiles
+
+[DefaultInstall.Services]
+AddService          = %ServiceName%,,ProcMonDriver.Service
+
+[DefaultUninstall]
+DelFiles            = ProcMonDriver.DriverFiles
+
+[DefaultUninstall.Services]
+DelService = ProcMonDriver,0x200
+
+[ProcMonDriver.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys        ;%windir%\system32\drivers\
+ServiceType      = 1                          ;SERVICE_KERNEL
+StartType        = 3                            ;SERVICE_DEMAND_START
+ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
+AddReg           = ProcMonDriver.AddRegistry
+
+[ProcMonDriver.AddRegistry]
+;HKR,,"SupportedFeatures",0x00010001,0x3
+HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
+HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
+;HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
+;HKR,,"Extensions",0x00010000,"exe","doc","txt","bat","cmd","inf"
+
+[ProcMonDriver.DriverFiles]
+%DriverName%.sys
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
 
 [SourceDisksFiles]
+ProcMonDriver.sys = 1,,
 
 ;[Manufacturer]
 ;%ManufacturerName%=Standard,NT$ARCH$
@@ -30,3 +62,12 @@ DefaultDestDir = 12
 ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
 ClassName=""
 DiskName="ProcMonDriver Source Disk"
+ServiceDescription="ProcMon driver"
+ServiceName="ProcMonDriver"
+DriverName="ProcMonDriver"
+
+;Instances specific information.
+DefaultInstance         = "ProcMonDriver Instance"
+Instance1.Name          = "ProcMonDriver Instance"
+Instance1.Altitude      = "265000"
+Instance1.Flags         = 0x0          ; Allow all attachments

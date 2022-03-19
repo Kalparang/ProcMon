@@ -167,6 +167,8 @@ Return Value:
     PSECURITY_DESCRIPTOR sd;
     NTSTATUS status;
 
+    DbgPrint("[ProcMon] DriverEntry\n");
+
     //
     //  Default to NonPagedPoolNx for non paged pool allocations where supported.
     //
