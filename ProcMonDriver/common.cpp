@@ -1,4 +1,10 @@
 #include "common.h"
+#include <vadefs.h>
+#include <ntstrsafe.h>
+
+#define va_start _crt_va_start
+#define va_arg _crt_va_arg
+#define va_end _crt_va_end
 
 #define NT_PROCNAMELEN	 16
 

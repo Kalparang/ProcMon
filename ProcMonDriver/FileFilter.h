@@ -20,6 +20,9 @@ Environment:
 #ifndef __SCANNER_H__
 #define __SCANNER_H__
 
+#include <fltKernel.h>
+//#include <ntddk.h>
+
 ///////////////////////////////////////////////////////////////////////////
 //
 //  Global variables
@@ -94,6 +97,7 @@ typedef struct _SCANNER_CREATE_PARAMS {
 EXTERN_C_START
 
 DRIVER_INITIALIZE DriverEntry;
+DRIVER_UNLOAD   TdDeviceUnload;
 NTSTATUS
 DriverEntry(
     _In_ PDRIVER_OBJECT DriverObject,

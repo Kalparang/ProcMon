@@ -19,16 +19,32 @@ Environment:
 
 --*/
 
-#include <fltKernel.h>
-#include <dontuse.h>
-#include <suppress.h>
+//#include <fltKernel.h>
+//#include <dontuse.h>
+//#include <suppress.h>
 #include "FileFilter.h"
-#include "common.h"
+#include "ProcessWatcher.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 #define SCANNER_REG_TAG       'Rncs'
 #define SCANNER_STRING_TAG    'Sncs'
+
+//
+// Process notify routines.
+//
+
+BOOLEAN TdProcessNotifyRoutineSet2 = FALSE;
+
+// allow filter the requested access
+BOOLEAN TdbProtectName = FALSE;
+BOOLEAN TdbRejectName = FALSE;
+
+//_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH TdDeviceCreate;
+//_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH TdDeviceClose;
+//_Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH TdDeviceCleanup;
+//_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH TdDeviceControl;
+//DRIVER_UNLOAD   TdDeviceUnload;
 
 //
 //  Structure that contains all the global data structures
@@ -165,18 +181,7 @@ Return Value:
 {
     UNREFERENCED_PARAMETER(RegistryPath);
 
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING uniString;
-    PSECURITY_DESCRIPTOR sd;
-    NTSTATUS status;
-
-    DbgPrint("[ProcMon] DriverEntry\n");
-
-    //
-    //  Default to NonPagedPoolNx for non paged pool allocations where supported.
-    //
-
-    ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+    drv_debug_print(DPFLTR_INFO_LEVEL, __FUNCTION__, "DriverEntry");
 
     //CallBack에서 Process의 이름을 찾기 위해 현재 Process의 Offset 찾기
     if (TRUE != SetProcessNameOffset())
@@ -184,92 +189,219 @@ Return Value:
         DbgPrint("[ProcMon] SetProcessNameOffset() failed.\nProcess 이름이 표시되지 않습니다.\n");
     }
 
-    drv_debug_print(DPFLTR_INFO_LEVEL, __FUNCTION__, "DriverEntry");
+    NTSTATUS status;
+
+    //obcallback
+    UNICODE_STRING NtDeviceName = RTL_CONSTANT_STRING(TD_NT_DEVICE_NAME);
+    UNICODE_STRING DosDevicesLinkName = RTL_CONSTANT_STRING(TD_DOS_DEVICES_LINK_NAME);
+    PDEVICE_OBJECT Device = NULL;
+    BOOLEAN SymLinkCreated = FALSE;
+    USHORT CallbackVersion;
+    //
+
+    CallbackVersion = ObGetFilterVersion();
 
     //
-    //  Register with filter manager.
+    // Initialize globals.
     //
 
-    status = FltRegisterFilter(DriverObject,
-        &FilterRegistration,
-        &ScannerData.Filter);
+    KeInitializeGuardedMutex(&TdCallbacksMutex);
 
+    //
+    // Create our device object.
+    //
 
-    if (!NT_SUCCESS(status)) {
+    status = IoCreateDevice(
+        DriverObject,                 // pointer to driver object
+        0,                            // device extension size
+        &NtDeviceName,                // device name
+        FILE_DEVICE_UNKNOWN,          // device type
+        0,                            // device characteristics
+        FALSE,                        // not exclusive
+        &Device);                     // returned device object pointer
 
-        return status;
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
     }
 
+    TD_ASSERT(Device == DriverObject->DeviceObject);
+
     //
-    // Obtain the extensions to scan from the registry
+    // Set dispatch routines.
     //
 
-    //status = ScannerInitializeScannedExtensions(RegistryPath);
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = TdDeviceCreate;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = TdDeviceClose;
+    DriverObject->MajorFunction[IRP_MJ_CLEANUP] = TdDeviceCleanup;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = TdDeviceControl;
+    DriverObject->DriverUnload = TdDeviceUnload;
+
+    //
+    // Create a link in the Win32 namespace.
+    //
+
+    status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
+
+    if (!NT_SUCCESS(status))
+    {
+        goto Exit;
+    }
+
+    SymLinkCreated = TRUE;
+
+    status = TdProtectNameCallback();
+
+    if (!NT_SUCCESS(status))
+    {
+        drv_debug_print(DPFLTR_TRACE_LEVEL, __FUNCTION__,
+            "TdProtectNameCallback fail: Status %x",
+            status);
+
+        goto Exit;
+    }
+    //
+    // Set process create routines.
+    //
+
+    //status = PsSetCreateProcessNotifyRoutineEx(
+    //    TdCreateProcessNotifyRoutine2,
+    //    FALSE
+    //);
+
+    //if (!NT_SUCCESS(status))
+    //{
+    //    drv_debug_print(DPFLTR_ERROR_LEVEL, __FUNCTION__,
+    //        "ObCallbackTest: DriverEntry: PsSetCreateProcessNotifyRoutineEx(2) returned 0x%x\n",
+    //        status);
+    //    goto Exit;
+    //}
+
+    //TdProcessNotifyRoutineSet2 = TRUE;
+
+    goto Exit;
+
+    ////filefilter
+    //OBJECT_ATTRIBUTES oa;
+    //UNICODE_STRING uniString;
+    //PSECURITY_DESCRIPTOR sd;
+    ////
+
+    ////
+    ////  Default to NonPagedPoolNx for non paged pool allocations where supported.
+    ////
+
+    //ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
+
+    ////
+    ////  Register with filter manager.
+    ////
+
+    //status = FltRegisterFilter(DriverObject,
+    //    &FilterRegistration,
+    //    &ScannerData.Filter);
+
 
     //if (!NT_SUCCESS(status)) {
 
-    //    status = STATUS_SUCCESS;
-
-    //    ScannedExtensions = &ScannedExtensionDefault;
-    //    ScannedExtensionCount = 1;
+    //    return status;
     //}
 
-    ScannedExtensions = &ScannedExtensionDefault;
-    ScannedExtensionCount = 1;
+    ////
+    //// Obtain the extensions to scan from the registry
+    ////
 
-    //
-    //  Create a communication port.
-    //
+    ////status = ScannerInitializeScannedExtensions(RegistryPath);
 
-    RtlInitUnicodeString(&uniString, ScannerPortName);
+    ////if (!NT_SUCCESS(status)) {
 
-    //
-    //  We secure the port so only ADMINs & SYSTEM can acecss it.
-    //
+    ////    status = STATUS_SUCCESS;
 
-    status = FltBuildDefaultSecurityDescriptor(&sd, FLT_PORT_ALL_ACCESS);
+    ////    ScannedExtensions = &ScannedExtensionDefault;
+    ////    ScannedExtensionCount = 1;
+    ////}
 
-    if (NT_SUCCESS(status)) {
+    //ScannedExtensions = &ScannedExtensionDefault;
+    //ScannedExtensionCount = 1;
 
-        InitializeObjectAttributes(&oa,
-            &uniString,
-            OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-            NULL,
-            sd);
+    ////
+    ////  Create a communication port.
+    ////
 
-        status = FltCreateCommunicationPort(ScannerData.Filter,
-            &ScannerData.ServerPort,
-            &oa,
-            NULL,
-            ScannerPortConnect,
-            ScannerPortDisconnect,
-            NULL,
-            1);
-        //
-        //  Free the security descriptor in all cases. It is not needed once
-        //  the call to FltCreateCommunicationPort() is made.
-        //
+    //RtlInitUnicodeString(&uniString, ScannerPortName);
 
-        FltFreeSecurityDescriptor(sd);
+    ////
+    ////  We secure the port so only ADMINs & SYSTEM can acecss it.
+    ////
 
-        if (NT_SUCCESS(status)) {
+    //status = FltBuildDefaultSecurityDescriptor(&sd, FLT_PORT_ALL_ACCESS);
 
-            //
-            //  Start filtering I/O.
-            //
+    //if (NT_SUCCESS(status)) {
 
-            status = FltStartFiltering(ScannerData.Filter);
+    //    InitializeObjectAttributes(&oa,
+    //        &uniString,
+    //        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+    //        NULL,
+    //        sd);
 
-            if (NT_SUCCESS(status)) {
+    //    status = FltCreateCommunicationPort(ScannerData.Filter,
+    //        &ScannerData.ServerPort,
+    //        &oa,
+    //        NULL,
+    //        ScannerPortConnect,
+    //        ScannerPortDisconnect,
+    //        NULL,
+    //        1);
+    //    //
+    //    //  Free the security descriptor in all cases. It is not needed once
+    //    //  the call to FltCreateCommunicationPort() is made.
+    //    //
 
-                return STATUS_SUCCESS;
-            }
+    //    FltFreeSecurityDescriptor(sd);
 
-            FltCloseCommunicationPort(ScannerData.ServerPort);
+    //    if (NT_SUCCESS(status)) {
+
+    //        //
+    //        //  Start filtering I/O.
+    //        //
+
+    //        status = FltStartFiltering(ScannerData.Filter);
+
+    //        if (NT_SUCCESS(status)) {
+
+    //            return STATUS_SUCCESS;
+    //        }
+
+    //        FltCloseCommunicationPort(ScannerData.ServerPort);
+    //    }
+    //}
+
+    Exit:
+
+    if (!NT_SUCCESS(status))
+    {
+        //if (TdProcessNotifyRoutineSet2 == TRUE)
+        //{
+        //    status = PsSetCreateProcessNotifyRoutineEx(
+        //        TdCreateProcessNotifyRoutine2,
+        //        TRUE
+        //    );
+
+        //    TD_ASSERT(status == STATUS_SUCCESS);
+
+        //    TdProcessNotifyRoutineSet2 = FALSE;
+        //}
+
+        if (SymLinkCreated == TRUE)
+        {
+            IoDeleteSymbolicLink(&DosDevicesLinkName);
+        }
+
+        if (Device != NULL)
+        {
+            IoDeleteDevice(Device);
         }
     }
-
-    ScannerFreeExtensions();
 
     FltUnregisterFilter(ScannerData.Filter);
 
@@ -680,6 +812,71 @@ Return value
     ScannerData.UserProcess = NULL;
 }
 
+//
+// Function:
+//
+//     TdDeviceUnload
+//
+// Description:
+//
+//     This function handles driver unloading. All this driver needs to do 
+//     is to delete the device object and the symbolic link between our 
+//     device name and the Win32 visible name.
+//
+
+VOID
+TdDeviceUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    UNICODE_STRING DosDevicesLinkName = RTL_CONSTANT_STRING(TD_DOS_DEVICES_LINK_NAME);
+
+    drv_debug_print(DPFLTR_TRACE_LEVEL, __FUNCTION__,
+        "TdDeviceUnload\n");
+
+    //
+    // Unregister process notify routines.
+    //
+
+    //if (TdProcessNotifyRoutineSet2 == TRUE)
+    //{
+    //    Status = PsSetCreateProcessNotifyRoutineEx(
+    //        TdCreateProcessNotifyRoutine2,
+    //        TRUE
+    //    );
+
+    //    TD_ASSERT(Status == STATUS_SUCCESS);
+
+    //    TdProcessNotifyRoutineSet2 = FALSE;
+    //}
+
+    // remove filtering and remove any OB callbacks
+    TdbProtectName = FALSE;
+    Status = TdDeleteProtectNameCallback();
+    TD_ASSERT(Status == STATUS_SUCCESS);
+
+    //
+    // Delete the link from our device name to a name in the Win32 namespace.
+    //
+
+    Status = IoDeleteSymbolicLink(&DosDevicesLinkName);
+    if (Status != STATUS_INSUFFICIENT_RESOURCES) {
+        //
+        // IoDeleteSymbolicLink can fail with STATUS_INSUFFICIENT_RESOURCES.
+        //
+
+        TD_ASSERT(NT_SUCCESS(Status));
+
+    }
+
+
+    //
+    // Delete our device object.
+    //
+
+    IoDeleteDevice(DriverObject->DeviceObject);
+}
 
 NTSTATUS
 ScannerUnload(
