@@ -34,14 +34,6 @@ ServiceBinary    = %12%\%DriverName%.sys        ;%windir%\system32\drivers\
 ServiceType      = 1                          ;SERVICE_KERNEL
 StartType        = 3                            ;SERVICE_DEMAND_START
 ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
-AddReg           = ProcMonDriver.AddRegistry
-
-[ProcMonDriver.AddRegistry]
-;HKR,,"SupportedFeatures",0x00010001,0x3
-HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
-HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,%Instance1.Altitude%
-HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
-;HKR,,"Extensions",0x00010000,"exe","doc","txt","bat","cmd","inf"
 
 [ProcMonDriver.DriverFiles]
 %DriverName%.sys
@@ -52,12 +44,6 @@ HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,%Instance1.Flags%
 [SourceDisksFiles]
 ProcMonDriver.sys = 1,,
 
-;[Manufacturer]
-;%ManufacturerName%=Standard,NT$ARCH$
-
-;[Standard.NT$ARCH$]
-
-
 [Strings]
 ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
 ClassName=""
@@ -65,9 +51,3 @@ DiskName="ProcMonDriver Source Disk"
 ServiceDescription="ProcMon driver"
 ServiceName="ProcMonDriver"
 DriverName="ProcMonDriver"
-
-;Instances specific information.
-DefaultInstance         = "ProcMonDriver Instance"
-Instance1.Name          = "ProcMonDriver Instance"
-Instance1.Altitude      = "286020"
-Instance1.Flags         = 0x0          ; Allow all attachments

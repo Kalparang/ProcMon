@@ -17,6 +17,9 @@
       <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
       <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
+    <Filter Include="Source Files\FSFilter">
+      <UniqueIdentifier>{3de7bec1-3781-4866-94a5-2890a5ff8e5d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="ProcMonDriver.inf">
@@ -24,27 +27,36 @@
     </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="common.cpp">
+    <ClCompile Include="OBCallback.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ProcessWatcher.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="AttachDetach.c">
+      <Filter>Source Files\FSFilter</Filter>
+    </ClCompile>
+    <ClCompile Include="FastIO.c">
+      <Filter>Source Files\FSFilter</Filter>
+    </ClCompile>
+    <ClCompile Include="IRPDispatch.c">
+      <Filter>Source Files\FSFilter</Filter>
+    </ClCompile>
+    <ClCompile Include="Notification.c">
+      <Filter>Source Files\FSFilter</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="main.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FileFilter.h">
+    <ClInclude Include="FSFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ProcessWatcher.h">
+    <ClInclude Include="pch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OBCallback.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
