@@ -45,6 +45,9 @@
     <ClCompile Include="Notification.c">
       <Filter>Source Files\FSFilter</Filter>
     </ClCompile>
+    <ClCompile Include="RegFilter.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FSFilter.h">
@@ -57,6 +60,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="OBCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RegFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

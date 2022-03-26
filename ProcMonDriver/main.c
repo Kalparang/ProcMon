@@ -1,11 +1,19 @@
 #include "pch.h"
 #include "OBCallback.h"
 #include "FSFilter.h"
+#include "RegFilter.h"
 
 //////////////////////////////////////////////////////////////////////////
 // Global data
 
 PDRIVER_OBJECT   g_fsFilterDriverObject = NULL;
+PDEVICE_OBJECT   g_DeviceObj = NULL;
+
+//
+// Registry callback version
+//
+ULONG g_MajorVersion;
+ULONG g_MinorVersion;
 
 FAST_IO_DISPATCH g_fastIoDispatch =
 {
@@ -120,6 +128,65 @@ DriverEntry(
         goto Exit;
     }
 
+    UNICODE_STRING NtDeviceName;
+    UNICODE_STRING DosDevicesLinkName;
+
+
+    //
+    // Create our device object.
+    //
+
+    RtlInitUnicodeString(&NtDeviceName, NT_DEVICE_NAME);
+
+    Status = IoCreateDevice(
+        DriverObject,                 // pointer to driver object
+        0,                            // device extension size
+        &NtDeviceName,                // device name
+        FILE_DEVICE_UNKNOWN,          // device type
+        0,                            // device characteristics
+        FALSE,                         // not exclusive
+        &g_DeviceObj);                // returned device object pointer
+
+    if (!NT_SUCCESS(Status)) {
+        DbgPrint("IoCreateDevice RegFilter fail : 0x%x\n", Status);
+        goto Exit;
+    }
+
+    //
+    // Create a link in the Win32 namespace.
+    //
+
+    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICES_LINK_NAME);
+
+    Status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
+
+    if (!NT_SUCCESS(Status)) {
+        IoDeleteDevice(g_DeviceObj);
+        DbgPrint("IoCreateSymbolicLink RegFilter fail : 0x%x\n", Status);
+        goto Exit;
+    }
+
+    //
+    // Get callback version.
+    //
+
+    CmGetCallbackVersion(&g_MajorVersion, &g_MinorVersion);
+    DbgPrint("Callback version %u.%u\n", g_MajorVersion, g_MinorVersion);
+
+    //
+    // Initialize the callback context list
+    //
+
+    InitializeListHead(&g_CallbackCtxListHead);
+    ExInitializeFastMutex(&g_CallbackCtxListLock);
+    g_NumCallbackCtxListEntries = 0;
+
+    Status = RegisterCallback(g_DeviceObj);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("RegisterCallback fail 0x%x\n", Status);
+    }
+
 
 Exit:
 
@@ -156,6 +223,8 @@ TdDeviceUnload(
     LARGE_INTEGER   interval;
     PDEVICE_OBJECT  devList[DEVOBJ_LIST_SIZE];
 
+    UNICODE_STRING  DosDevicesLinkName;
+
     interval.QuadPart = (1 * DELAY_ONE_SECOND); //delay 5 seconds
 
 
@@ -166,6 +235,25 @@ TdDeviceUnload(
     //
     Status = TdDeleteOBCallback();
     TD_ASSERT(Status == STATUS_SUCCESS);
+
+    Status = UnRegisterCallback(g_DeviceObj);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("UnRegisterCallback fail : 0x%x", Status);
+    }
+
+    //
+    // Delete the link from our device name to a name in the Win32 namespace.
+    //
+
+    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICES_LINK_NAME);
+    IoDeleteSymbolicLink(&DosDevicesLinkName);
+
+    //
+    // Finally delete our device object
+    //
+
+    IoDeleteDevice(g_DeviceObj);
 
     //
     //  Unregistered callback routine for file system changes.

@@ -36,6 +36,22 @@
 #define TD_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ObCallbackTest"
 #define TD_WIN32_DEVICE_NAME       L"\\\\.\\ObCallbackTest"
 
+// RegFilter
+
+#define NT_DEVICE_NAME          L"\\Device\\RegFltr"
+#define DOS_DEVICES_LINK_NAME   L"\\DosDevices\\RegFltr"
+#define WIN32_DEVICE_NAME       L"\\\\.\\RegFltr"
+
+//
+// SDDL string used when creating the device. This string
+// limits access to this driver to system and admins only.
+//
+
+#define DEVICE_SDDL             L"D:P(A;;GA;;;SY)(A;;GA;;;BA)"
+
+#define MAX_ALTITUDE_BUFFER_LENGTH 10
+
+//
 
 #define NAME_SIZE   200
 

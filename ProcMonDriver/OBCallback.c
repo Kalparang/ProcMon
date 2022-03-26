@@ -171,21 +171,22 @@ CBTdPreOperationCallback(
         AccessBitsToSet = 0;
     }
     else if (PreInfo->ObjectType == *PsThreadType) {
-        HANDLE ProcessIdOfTargetThread = PsGetThreadProcessId((PETHREAD)PreInfo->Object);
-        //
-        // Also ignore requests for threads belonging to the current processes.
-        //
+        goto Exit;
+        //HANDLE ProcessIdOfTargetThread = PsGetThreadProcessId((PETHREAD)PreInfo->Object);
+        ////
+        //// Also ignore requests for threads belonging to the current processes.
+        ////
 
-        if (ProcessIdOfTargetThread == PsGetCurrentProcessId()) {
-        //    DbgPrintEx(
-        //        DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-        //        "ObCallbackTest: CBTdPreOperationCallback: ignore thread open/duplicate from the protected process itself\n");
-            goto Exit;
-        }
+        //if (ProcessIdOfTargetThread == PsGetCurrentProcessId()) {
+        ////    DbgPrintEx(
+        ////        DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+        ////        "ObCallbackTest: CBTdPreOperationCallback: ignore thread open/duplicate from the protected process itself\n");
+        //    goto Exit;
+        //}
 
-        ObjectTypeName = L"PsThreadType";
-        AccessBitsToClear = CB_THREAD_TERMINATE;
-        AccessBitsToSet = 0;
+        //ObjectTypeName = L"PsThreadType";
+        //AccessBitsToClear = CB_THREAD_TERMINATE;
+        //AccessBitsToSet = 0;
     }
     else {
         DbgPrintEx(
