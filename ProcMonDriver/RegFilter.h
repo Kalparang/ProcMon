@@ -69,7 +69,7 @@ typedef struct _GET_CALLBACK_VERSION_OUTPUT {
 //
 // Pointer to the device object used to register registry callbacks
 //
-extern PDEVICE_OBJECT g_DeviceObj;
+extern PDEVICE_OBJECT g_RegDeviceObject;
 
 
 //
@@ -173,6 +173,16 @@ typedef struct _CALLBACK_CONTEXT {
 
 } CALLBACK_CONTEXT, * PCALLBACK_CONTEXT;
 
+
+NTSTATUS
+RegFilterInit(
+    _In_ PDRIVER_OBJECT DriverObject
+);
+
+NTSTATUS
+RegFilterUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+);
 
 //
 // The registry and transaction callback routines

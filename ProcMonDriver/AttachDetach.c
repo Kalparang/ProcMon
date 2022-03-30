@@ -1,5 +1,129 @@
 #include "FSFilter.h"
 
+PDRIVER_OBJECT   g_FsDriverObject = NULL;
+
+FAST_IO_DISPATCH g_fastIoDispatch =
+{
+    sizeof(FAST_IO_DISPATCH),
+    FsFilterFastIoCheckIfPossible,
+    FsFilterFastIoRead,
+    FsFilterFastIoWrite,
+    FsFilterFastIoQueryBasicInfo,
+    FsFilterFastIoQueryStandardInfo,
+    FsFilterFastIoLock,
+    FsFilterFastIoUnlockSingle,
+    FsFilterFastIoUnlockAll,
+    FsFilterFastIoUnlockAllByKey,
+    FsFilterFastIoDeviceControl,
+    NULL,
+    NULL,
+    FsFilterFastIoDetachDevice,
+    FsFilterFastIoQueryNetworkOpenInfo,
+    NULL,
+    FsFilterFastIoMdlRead,
+    FsFilterFastIoMdlReadComplete,
+    FsFilterFastIoPrepareMdlWrite,
+    FsFilterFastIoMdlWriteComplete,
+    FsFilterFastIoReadCompressed,
+    FsFilterFastIoWriteCompressed,
+    FsFilterFastIoMdlReadCompleteCompressed,
+    FsFilterFastIoMdlWriteCompleteCompressed,
+    FsFilterFastIoQueryOpen,
+    NULL,
+    NULL,
+    NULL,
+};
+
+NTSTATUS
+FsFilterInit(
+    _In_ PDRIVER_OBJECT DriverObject
+)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    ULONG i = 0;
+
+    g_FsDriverObject = DriverObject;
+
+    //
+    // Initialize the driver object dispatch table.
+    //
+
+    //for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; ++i)
+    //{
+    //    DriverObject->MajorFunction[i] = FsFilterDispatchPassThrough;
+    //}
+
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = FsFilterDispatchPassThrough;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = FsFilterDispatchPassThrough;
+    DriverObject->MajorFunction[IRP_MJ_READ] = FsFilterDispatchPassThrough;
+    DriverObject->MajorFunction[IRP_MJ_WRITE] = FsFilterDispatchPassThrough;
+
+    //
+    // Set fast-io dispatch table.
+    //
+
+    DriverObject->FastIoDispatch = &g_fastIoDispatch;
+
+    //
+    //  Registered callback routine for file system changes.
+    //
+
+    Status = IoRegisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
+
+    return Status;
+}
+
+NTSTATUS
+FsFilterUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    ULONG numDevices = 0;
+    ULONG i = 0;
+    LARGE_INTEGER interval;
+    PDEVICE_OBJECT devList[DEVOBJ_LIST_SIZE];
+
+    interval.QuadPart = (1 * DELAY_ONE_SECOND); //delay 5 seconds
+
+    //
+    //  Unregistered callback routine for file system changes.
+    //
+
+    IoUnregisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
+
+    //
+    //  This is the loop that will go through all of the devices we are attached
+    //  to and detach from them.
+    //
+
+    for (;;)
+    {
+        IoEnumerateDeviceObjectList(
+            DriverObject,
+            devList,
+            sizeof(devList),
+            &numDevices);
+
+        if (0 == numDevices)
+        {
+            break;
+        }
+
+        numDevices = min(numDevices, RTL_NUMBER_OF(devList));
+
+        for (i = 0; i < numDevices; ++i)
+        {
+            FsFilterDetachFromDevice(devList[i]);
+            ObDereferenceObject(devList[i]);
+        }
+
+        KeDelayExecutionThread(KernelMode, FALSE, &interval);
+    }
+
+    return Status;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // This will attach to a DeviceObject that represents a mounted volume
 
@@ -20,7 +144,7 @@ NTSTATUS FsFilterAttachToDevice(
     //
 
     status = IoCreateDevice(
-        g_fsFilterDriverObject,
+        g_FsDriverObject,
         sizeof(FSFILTER_DEVICE_EXTENSION),
         NULL,
         DeviceObject->DeviceType,
@@ -167,5 +291,5 @@ BOOLEAN FsFilterIsMyDeviceObject(
     __in PDEVICE_OBJECT DeviceObject
 )
 {
-    return DeviceObject->DriverObject == g_fsFilterDriverObject;
+    return DeviceObject->DriverObject == g_FsDriverObject;
 }

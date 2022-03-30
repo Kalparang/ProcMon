@@ -2,50 +2,12 @@
 #include "OBCallback.h"
 #include "FSFilter.h"
 #include "RegFilter.h"
+#include "IOCTL.h"
 
 //////////////////////////////////////////////////////////////////////////
 // Global data
 
-PDRIVER_OBJECT   g_fsFilterDriverObject = NULL;
-PDEVICE_OBJECT   g_DeviceObj = NULL;
-
-//
-// Registry callback version
-//
-ULONG g_MajorVersion;
-ULONG g_MinorVersion;
-
-FAST_IO_DISPATCH g_fastIoDispatch =
-{
-    sizeof(FAST_IO_DISPATCH),
-    FsFilterFastIoCheckIfPossible,
-    FsFilterFastIoRead,
-    FsFilterFastIoWrite,
-    FsFilterFastIoQueryBasicInfo,
-    FsFilterFastIoQueryStandardInfo,
-    FsFilterFastIoLock,
-    FsFilterFastIoUnlockSingle,
-    FsFilterFastIoUnlockAll,
-    FsFilterFastIoUnlockAllByKey,
-    FsFilterFastIoDeviceControl,
-    NULL,
-    NULL,
-    FsFilterFastIoDetachDevice,
-    FsFilterFastIoQueryNetworkOpenInfo,
-    NULL,
-    FsFilterFastIoMdlRead,
-    FsFilterFastIoMdlReadComplete,
-    FsFilterFastIoPrepareMdlWrite,
-    FsFilterFastIoMdlWriteComplete,
-    FsFilterFastIoReadCompressed,
-    FsFilterFastIoWriteCompressed,
-    FsFilterFastIoMdlReadCompleteCompressed,
-    FsFilterFastIoMdlWriteCompleteCompressed,
-    FsFilterFastIoQueryOpen,
-    NULL,
-    NULL,
-    NULL,
-};
+PDRIVER_OBJECT g_pDriverObject = NULL;
 
 //
 // Function declarations
@@ -59,6 +21,8 @@ _Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH TdDeviceControl;
 
 DRIVER_UNLOAD   TdDeviceUnload;
 
+KGUARDED_MUTEX ThreadMutex;
+
 //
 // DriverEntry
 //
@@ -69,133 +33,49 @@ DriverEntry(
     _In_ PUNICODE_STRING RegistryPath
 )
 {
-    NTSTATUS Status;
-    USHORT CallbackVersion;
-    ULONG i = 0;
-
     UNREFERENCED_PARAMETER(RegistryPath);
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "ObCallbackTest: DriverEntry: Driver loaded. Use ed nt!Kd_IHVDRIVER_Mask f (or 7) to enable more traces\n");
+    NTSTATUS Status = STATUS_SUCCESS;
+    USHORT CallbackVersion;
+
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+        "ProcMon DriverEntry\n");
+
+    g_pDriverObject = DriverObject;
 
     CallbackVersion = ObGetFilterVersion();
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "ObCallbackTest: DriverEntry: Callback version 0x%hx\n", CallbackVersion);
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+        "ObCallback version 0x%hx\n", CallbackVersion);
 
-    //
-    // Store our driver object.
-    //
-
-    g_fsFilterDriverObject = DriverObject;
-
-    //
-    // Initialize globals.
-    //
-
-    KeInitializeGuardedMutex(&TdCallbacksMutex);
-
-    //
-    //  Initialize the driver object dispatch table.
-    //
-
-    for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; ++i)
-    {
-        DriverObject->MajorFunction[i] = FsFilterDispatchPassThrough;
-    }
-
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = FsFilterDispatchCreate;
     DriverObject->DriverUnload = TdDeviceUnload;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ioctlDeviceControl;
 
+    Status = FsFilterInit(DriverObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "FsFilterInit fail : 0x%x\n", Status);
+    }
 
     Status = TdInitOBCallback();
     if (!NT_SUCCESS(Status))
     {
-        goto Exit;
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "TdInitOBCallback fail : 0x%x\n", Status);
     }
 
-    //
-    // Set fast-io dispatch table.
-    //
-
-    DriverObject->FastIoDispatch = &g_fastIoDispatch;
-
-    //
-    //  Registered callback routine for file system changes.
-    //
-
-    Status = IoRegisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
+    Status = RegFilterInit(DriverObject);
     if (!NT_SUCCESS(Status))
     {
-        goto Exit;
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "RegFilterInit fail : 0x%x\n", Status);
     }
 
-    UNICODE_STRING NtDeviceName;
-    UNICODE_STRING DosDevicesLinkName;
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+        "ProcMon DriverEntry: End 0x%x\n", Status);
 
-
-    //
-    // Create our device object.
-    //
-
-    RtlInitUnicodeString(&NtDeviceName, NT_DEVICE_NAME);
-
-    Status = IoCreateDevice(
-        DriverObject,                 // pointer to driver object
-        0,                            // device extension size
-        &NtDeviceName,                // device name
-        FILE_DEVICE_UNKNOWN,          // device type
-        0,                            // device characteristics
-        FALSE,                         // not exclusive
-        &g_DeviceObj);                // returned device object pointer
-
-    if (!NT_SUCCESS(Status)) {
-        DbgPrint("IoCreateDevice RegFilter fail : 0x%x\n", Status);
-        goto Exit;
-    }
-
-    //
-    // Create a link in the Win32 namespace.
-    //
-
-    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICES_LINK_NAME);
-
-    Status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
-
-    if (!NT_SUCCESS(Status)) {
-        IoDeleteDevice(g_DeviceObj);
-        DbgPrint("IoCreateSymbolicLink RegFilter fail : 0x%x\n", Status);
-        goto Exit;
-    }
-
-    //
-    // Get callback version.
-    //
-
-    CmGetCallbackVersion(&g_MajorVersion, &g_MinorVersion);
-    DbgPrint("Callback version %u.%u\n", g_MajorVersion, g_MinorVersion);
-
-    //
-    // Initialize the callback context list
-    //
-
-    InitializeListHead(&g_CallbackCtxListHead);
-    ExInitializeFastMutex(&g_CallbackCtxListLock);
-    g_NumCallbackCtxListEntries = 0;
-
-    Status = RegisterCallback(g_DeviceObj);
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrint("RegisterCallback fail 0x%x\n", Status);
-    }
-
-
-Exit:
-
-    if (!NT_SUCCESS(Status))
-    {
-
-    }
-
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "ObCallbackTest: DriverEntry: End 0x%x\n", Status);
+    IOInit();
 
     return Status;
 }
@@ -218,17 +98,9 @@ TdDeviceUnload(
 )
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    ULONG           numDevices = 0;
-    ULONG           i = 0;
-    LARGE_INTEGER   interval;
-    PDEVICE_OBJECT  devList[DEVOBJ_LIST_SIZE];
 
-    UNICODE_STRING  DosDevicesLinkName;
-
-    interval.QuadPart = (1 * DELAY_ONE_SECOND); //delay 5 seconds
-
-
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL, "ObCallbackTest: TdDeviceUnload\n");
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+        "ProcMon: TdDeviceUnload\n");
 
     //
     // remove any OB callbacks
@@ -236,59 +108,22 @@ TdDeviceUnload(
     Status = TdDeleteOBCallback();
     TD_ASSERT(Status == STATUS_SUCCESS);
 
-    Status = UnRegisterCallback(g_DeviceObj);
+    Status = RegFilterUnload(DriverObject);
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint("UnRegisterCallback fail : 0x%x", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "RegFilterUnload fail : 0x%x\n", Status);
     }
 
-    //
-    // Delete the link from our device name to a name in the Win32 namespace.
-    //
-
-    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICES_LINK_NAME);
-    IoDeleteSymbolicLink(&DosDevicesLinkName);
-
-    //
-    // Finally delete our device object
-    //
-
-    IoDeleteDevice(g_DeviceObj);
-
-    //
-    //  Unregistered callback routine for file system changes.
-    //
-
-    IoUnregisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
-
-    //
-    //  This is the loop that will go through all of the devices we are attached
-    //  to and detach from them.
-    //
-
-    for (;;)
+    Status = FsFilterUnload(DriverObject);
+    if (!NT_SUCCESS(Status))
     {
-        IoEnumerateDeviceObjectList(
-            DriverObject,
-            devList,
-            sizeof(devList),
-            &numDevices);
-
-        if (0 == numDevices)
-        {
-            break;
-        }
-
-        numDevices = min(numDevices, RTL_NUMBER_OF(devList));
-
-        for (i = 0; i < numDevices; ++i)
-        {
-            FsFilterDetachFromDevice(devList[i]);
-            ObDereferenceObject(devList[i]);
-        }
-
-        KeDelayExecutionThread(KernelMode, FALSE, &interval);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "FsFilterUnload fail : 0x%x\n", Status);
     }
+
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+        "ProcMon: TdDeviceUnload End : 0x%x\n", Status);
 }
 
 //

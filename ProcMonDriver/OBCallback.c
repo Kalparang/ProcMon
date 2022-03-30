@@ -60,6 +60,8 @@ NTSTATUS TdInitOBCallback(
 {
     NTSTATUS Status = STATUS_SUCCESS;
 
+    KeInitializeGuardedMutex(&TdCallbacksMutex);
+
     KeAcquireGuardedMutex(&TdCallbacksMutex);
 
     // Need to enable the OB callbacks
@@ -217,24 +219,24 @@ CBTdPreOperationCallback(
 
     InitialDesiredAccess = *DesiredAccess;
 
-    DbgPrintEx(
-        DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-        "ObCallbackTest: CBTdPreOperationCallback\n"
-        "    Client Id:    %p:%p\n"
-        "    Object:       %p\n"
-        "    Type:         %ls\n"
-        "    Operation:    %ls (KernelHandle=%d)\n"
-        "    OriginalDesiredAccess: 0x%x\n"
-        "    DesiredAccess:    0x%x\n",
-        PsGetCurrentProcessId(),
-        PsGetCurrentThreadId(),
-        PreInfo->Object,
-        ObjectTypeName,
-        OperationName,
-        PreInfo->KernelHandle,
-        OriginalDesiredAccess,
-        InitialDesiredAccess
-    );
+    //DbgPrintEx(
+    //    DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+    //    "ObCallbackInfo: CBTdPreOperationCallback |"
+    //    "    Client Id:    %p:%p |"
+    //    "    Object:       %p |"
+    //    "    Type:         %ls |"
+    //    "    Operation:    %ls (KernelHandle=%d) |"
+    //    "    OriginalDesiredAccess: 0x%x |"
+    //    "    DesiredAccess:    0x%x |",
+    //    PsGetCurrentProcessId(),
+    //    PsGetCurrentThreadId(),
+    //    PsGetProcessId(PreInfo->Object),
+    //    ObjectTypeName,
+    //    OperationName,
+    //    PreInfo->KernelHandle,
+    //    OriginalDesiredAccess,
+    //    InitialDesiredAccess
+    //);
 
 Exit:
 

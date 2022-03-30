@@ -28,6 +28,16 @@ typedef struct _FSFILTER_DEVICE_EXTENSION
 //////////////////////////////////////////////////////////////////////////
 // General Functions
 
+NTSTATUS
+FsFilterInit(
+    _In_ PDRIVER_OBJECT DriverObject
+);
+
+NTSTATUS
+FsFilterUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+);
+
 NTSTATUS FsFilterDispatchPassThrough(
     __in PDEVICE_OBJECT DeviceObject,
     __in PIRP           Irp
@@ -255,4 +265,4 @@ BOOLEAN FsFilterFastIoQueryOpen(
 //////////////////////////////////////////////////////////////////////////
 // Global data
 
-extern PDRIVER_OBJECT g_fsFilterDriverObject;
+extern PDRIVER_OBJECT g_FsDriverObject;

@@ -30,12 +30,14 @@ VOID FsFilterNotificationCallback(
 
     if (FsActive)
     {
-        DbgPrint("FsFilter Active\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+            "FsFilter Active\n");
         FsFilterAttachToFileSystemDevice(DeviceObject);
     }
     else
     {
-        DbgPrint("FsFilter deActive\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+            "FsFilter deActive\n");
         FsFilterDetachFromFileSystemDevice(DeviceObject);
     }
 }

@@ -22,6 +22,7 @@ Environment:
 
 #include "RegFilter.h"
 #include "common.h"
+#include "IOCTL.h"
 
 //
 // The root key used in the samples
@@ -32,10 +33,110 @@ FAST_MUTEX g_CallbackCtxListLock;
 LIST_ENTRY g_CallbackCtxListHead;
 USHORT g_NumCallbackCtxListEntries;
 
+PDEVICE_OBJECT   g_RegDeviceObject = NULL;
+BOOLEAN g_RegSymbolicLink = FALSE;
+
+//
+// Registry callback version
+//
+ULONG g_MajorVersion;
+ULONG g_MinorVersion;
+
 LPCWSTR
 GetNotifyClassString(
     _In_ REG_NOTIFY_CLASS NotifyClass
 );
+
+NTSTATUS
+RegFilterInit(
+    _In_ PDRIVER_OBJECT DriverObject
+)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    UNICODE_STRING NtDeviceName;
+    UNICODE_STRING DosDevicesLinkName;
+
+    //
+    // Create our device object.
+    //
+    RtlInitUnicodeString(&NtDeviceName, REG_DEVICE_NAME);
+    Status = IoCreateDevice(
+        DriverObject,                 // pointer to driver object
+        0,                            // device extension size
+        &NtDeviceName,                // device name
+        FILE_DEVICE_UNKNOWN,          // device type
+        0,                            // device characteristics
+        FALSE,                         // not exclusive
+        &g_RegDeviceObject);                // returned device object pointer
+
+    if (!NT_SUCCESS(Status)) {
+        RegFilterUnload(DriverObject);
+        return Status;
+    }
+
+    //
+    // Create a link in the Win32 namespace.
+    //
+    RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME);
+    Status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
+    if (!NT_SUCCESS(Status)) {
+        RegFilterUnload(DriverObject);
+        return Status;
+    }
+
+    g_RegSymbolicLink = TRUE;
+
+    //
+    // Get callback version.
+    //
+    CmGetCallbackVersion(&g_MajorVersion, &g_MinorVersion);
+
+    //
+    // Initialize the callback context list
+    //
+    InitializeListHead(&g_CallbackCtxListHead);
+    ExInitializeFastMutex(&g_CallbackCtxListLock);
+    g_NumCallbackCtxListEntries = 0;
+
+    Status = RegisterCallback(g_RegDeviceObject);
+    if (!NT_SUCCESS(Status))
+    {
+        RegFilterUnload(DriverObject);
+        return Status;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+RegFilterUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+)
+{
+    UNREFERENCED_PARAMETER(DriverObject);
+
+    NTSTATUS Status = STATUS_SUCCESS;
+    UNICODE_STRING  DosDevicesLinkName;
+
+    if (g_RegDeviceObject != NULL)
+    {
+        Status = UnRegisterCallback(g_RegDeviceObject);
+    }
+
+    if (g_RegSymbolicLink)
+    {
+        RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME);
+        IoDeleteSymbolicLink(&DosDevicesLinkName);
+    }
+
+    if (g_RegDeviceObject != NULL)
+    {
+        IoDeleteDevice(g_RegDeviceObject);
+        g_RegDeviceObject = NULL;
+    }
+
+    return Status;
+}
 
 NTSTATUS
 Callback(
@@ -93,7 +194,8 @@ Return Value:
         // function marks Argument 2 as opt and is looser than what 
         // it actually is.
         //
-        DbgPrint("Callback Argument2 is NULL\n");
+        //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+        //    "Callback Argument2 is NULL\n");
 
         return STATUS_SUCCESS;
     }
@@ -150,7 +252,8 @@ Return Value:
         &CallbackCtx->Cookie,
         NULL);
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("CmRegisterCallback failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "CmRegisterCallback failed. Status 0x%x\n", Status);
         goto Exit;
     }
 
@@ -163,13 +266,15 @@ Return Value:
 
 Exit:
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("RegisterCallback failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "RegisterCallback failed. Status 0x%x\n", Status);
         if (CallbackCtx != NULL) {
             DeleteCallbackContext(CallbackCtx);
         }
     }
     else {
-        DbgPrint("RegisterCallback succeeded\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+            "RegisterCallback succeeded\n");
     }
 
     return Status;
@@ -212,7 +317,8 @@ Return Value:
     Status = CmUnRegisterCallback(CallbackCtxCookie);
 
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("CmUnRegisterCallback failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "CmUnRegisterCallback failed. Status 0x%x\n", Status);
         goto Exit;
     }
 
@@ -227,10 +333,12 @@ Return Value:
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("UnRegisterCallback failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "UnRegisterCallback failed. Status 0x%x\n", Status);
     }
     else {
-        DbgPrint("UnRegisterCallback succeeded\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+            "UnRegisterCallback succeeded\n");
     }
 
     return Status;
@@ -294,10 +402,12 @@ Return Value:
 Exit:
 
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("GetCallbackVersion failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "GetCallbackVersion failed. Status 0x%x\n", Status);
     }
     else {
-        DbgPrint("GetCallbackVersion succeeded\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+            "GetCallbackVersion succeeded\n");
     }
 
     return Status;
@@ -418,7 +528,7 @@ Return Value:
     UNICODE_STRING NotifyClassString = { 0 };
 
     RtlInitUnicodeString(&RegistryName, L"");
-    RtlInitUnicodeString(&RegistryName, GetNotifyClassString(NotifyClass));
+    RtlInitUnicodeString(&NotifyClassString, GetNotifyClassString(NotifyClass));
 
     switch (NotifyClass) {
     case RegNtPreDeleteKey:
@@ -429,7 +539,7 @@ Return Value:
         if (PreDeleteKey->Object != NULL)
             RegistryObject = PreDeleteKey->Object;
 
-        RtlInitUnicodeString(&RegistryName, L"");
+        //RtlInitUnicodeString(&RegistryName, L"");
     }
     break;
     case RegNtPreSetValueKey:
@@ -467,9 +577,9 @@ Return Value:
         if (PreRenameKey->Object != NULL)
             RegistryObject = PreRenameKey->Object;
 
-        if (PreRenameKey->NewName != NULL)
-            if (PreRenameKey->NewName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreRenameKey->NewName->Buffer);
+        //if (PreRenameKey->NewName != NULL)
+        //    if (PreRenameKey->NewName->Buffer != NULL)
+        //        RtlInitUnicodeString(&RegistryName, PreRenameKey->NewName->Buffer);
     }
     break;
     //case RegNtPreEnumerateKey:
@@ -482,7 +592,7 @@ Return Value:
         if (PreQueryKey->Object != NULL)
             RegistryObject = PreQueryKey->Object;
 
-        RtlInitUnicodeString(&RegistryName, L"");
+        //RtlInitUnicodeString(&RegistryName, L"");
     }
     break;
     case RegNtPreQueryValueKey:
@@ -507,7 +617,7 @@ Return Value:
         if (PreKeyHandleClose->Object != NULL)
             RegistryObject = PreKeyHandleClose->Object;
 
-        RtlInitUnicodeString(&RegistryName, L"");
+        //RtlInitUnicodeString(&RegistryName, L"");
     }
     break;
     case RegNtPreCreateKeyEx:
@@ -599,7 +709,23 @@ Return Value:
 
             if (NT_SUCCESS(Status))
             {
-                DbgPrint("%wZ\n\t%wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
+                //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+                //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
+                
+                size_t len = RegistryPath->Name.Length + RegistryName.Length;
+                PWCH RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len + (sizeof(WCHAR) * 2), 'reg');
+                wcscpy(RegistryFullPath, RegistryPath->Name.Buffer);
+                wcscat(RegistryFullPath, L"\\");
+                wcscat(RegistryFullPath, RegistryName.Buffer);
+                LARGE_INTEGER CurrentTime;
+                KeQuerySystemTime(&CurrentTime);
+                ExSystemTimeToLocalTime(&CurrentTime, &CurrentTime);
+                PREGDATA pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'reg');
+                pRegData->NotifyClass = NotifyClass;
+                pRegData->PID = PsGetCurrentProcessId();
+                pRegData->RegistryFullPath = RegistryFullPath;
+                pRegData->SystemTick = CurrentTime.QuadPart;
+                CreateData(pRegData, 2);
             }
 
             ExFreePool(RegistryPath);
@@ -607,7 +733,8 @@ Return Value:
     }
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint("ObQueryNameString fail : 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "ObQueryNameString fail : 0x%x\n", Status);
     }
 
     return;
@@ -683,7 +810,8 @@ Return Value:
                 NULL);
 
             if (!NT_SUCCESS(Status)) {
-                DbgPrint("CmSetCallbackobjectContext failed.Status 0x%x\n", Status);
+                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+                    "CmSetCallbackobjectContext failed.Status 0x%x\n", Status);
             }
         }
         break;
@@ -713,7 +841,8 @@ Return Value:
             InterlockedIncrement(&CallbackCtx->NotificationWithContextCount);
         }
         else {
-            DbgPrint("Unexpected ObjectContext value: 0x%p\n", ObjectContext);
+            DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+                "Unexpected ObjectContext value: 0x%p\n", ObjectContext);
         }
 
         break;
@@ -731,7 +860,8 @@ Return Value:
 
         CleanupInfo = (PREG_CALLBACK_CONTEXT_CLEANUP_INFORMATION)Argument2;
         if (CleanupInfo->ObjectContext != CallbackCtx) {
-            DbgPrint("ContextCleanup's ObjectContext has unexpected value: 0x%p.\n",
+            DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+                "ContextCleanup's ObjectContext has unexpected value: 0x%p.\n",
                 CleanupInfo->ObjectContext);
         }
         else {
@@ -784,7 +914,8 @@ Return Value:
         REGFLTR_CONTEXT_POOL_TAG);
 
     if (CallbackCtx == NULL) {
-        DbgPrint("CreateCallbackContext failed due to insufficient resources.\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "CreateCallbackContext failed due to insufficient resources.\n");
         goto Exit;
     }
 
@@ -796,7 +927,8 @@ Return Value:
         AltitudeString);
 
     if (!NT_SUCCESS(Status)) {
-        DbgPrint("RtlStringCbPrintfW in CreateCallbackContext failed. Status 0x%x\n", Status);
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "RtlStringCbPrintfW in CreateCallbackContext failed. Status 0x%x\n", Status);
         goto Exit;
     }
 
@@ -847,7 +979,8 @@ Return Value:
         Success = TRUE;
     }
     else {
-        DbgPrint("Insert Callback Ctx failed : Max CallbackCtx entries reached.\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+            "Insert Callback Ctx failed : Max CallbackCtx entries reached.\n");
     }
 
     ExReleaseFastMutex(&g_CallbackCtxListLock);
@@ -899,7 +1032,8 @@ Return Value:
     ExReleaseFastMutex(&g_CallbackCtxListLock);
 
     if (CallbackCtx == NULL) {
-        DbgPrint("FindCallbackContext failed: No context with specified cookied was found.\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_WARNING_LEVEL,
+            "FindCallbackContext failed: No context with specified cookied was found.\n");
     }
 
     return CallbackCtx;
@@ -950,7 +1084,8 @@ Return Value:
     ExReleaseFastMutex(&g_CallbackCtxListLock);
 
     if (CallbackCtx == NULL) {
-        DbgPrint("FindAndRemoveCallbackContext failed: No context with specified cookied was found.\n");
+        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_WARNING_LEVEL,
+            "FindAndRemoveCallbackContext failed: No context with specified cookied was found.\n");
     }
 
     return CallbackCtx;

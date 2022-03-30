@@ -29,18 +29,22 @@
 // in the sample code to be unique for your own use.
 //
 
-#define TD_DRIVER_NAME             L"ObCallbackTest"
-#define TD_DRIVER_NAME_WITH_EXT    L"ObCallbackTest.sys"
+#define OB_DRIVER_NAME             L"ProcMonOB"
+#define OB_DRIVER_NAME_WITH_EXT    L"ProcMonOB.sys"
 
-#define TD_NT_DEVICE_NAME          L"\\Device\\ObCallbackTest"
-#define TD_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ObCallbackTest"
-#define TD_WIN32_DEVICE_NAME       L"\\\\.\\ObCallbackTest"
+#define OB_DEVICE_NAME          L"\\Device\\ProcMonOB"
+#define OB_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonOB"
+#define OB_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonOB"
+
+#define FS_DEVICE_NAME          L"\\Device\\ProcMonFS"
+#define FS_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonFS"
+#define FS_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonFS"
 
 // RegFilter
 
-#define NT_DEVICE_NAME          L"\\Device\\RegFltr"
-#define DOS_DEVICES_LINK_NAME   L"\\DosDevices\\RegFltr"
-#define WIN32_DEVICE_NAME       L"\\\\.\\RegFltr"
+#define REG_DEVICE_NAME          L"\\Device\\ProcMonRF"
+#define REG_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonRF"
+#define REG_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonRF"
 
 //
 // SDDL string used when creating the device. This string
