@@ -33,18 +33,15 @@
 #define OB_DRIVER_NAME_WITH_EXT    L"ProcMonOB.sys"
 
 #define OB_DEVICE_NAME          L"\\Device\\ProcMonOB"
-#define OB_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonOB"
-#define OB_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonOB"
+#define OB_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonobc"
 
 #define FS_DEVICE_NAME          L"\\Device\\ProcMonFS"
-#define FS_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonFS"
-#define FS_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonFS"
+#define FS_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonfsy"
 
 // RegFilter
 
 #define REG_DEVICE_NAME          L"\\Device\\ProcMonRF"
-#define REG_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonRF"
-#define REG_WIN32_DEVICE_NAME       L"\\\\.\\ProcMonRF"
+#define REG_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonreg"
 
 //
 // SDDL string used when creating the device. This string

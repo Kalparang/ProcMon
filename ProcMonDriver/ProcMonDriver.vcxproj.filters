@@ -51,6 +51,9 @@
     <ClCompile Include="IOCTL.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="IPC.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FSFilter.h">
@@ -69,6 +72,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="IOCTL.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IPC.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

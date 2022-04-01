@@ -22,7 +22,7 @@ Environment:
 
 #include "RegFilter.h"
 #include "common.h"
-#include "IOCTL.h"
+#include "IPC.h"
 
 //
 // The root key used in the samples
@@ -687,7 +687,7 @@ Return Value:
     {
         return;
     }
-
+    
     Status = ObQueryNameString(RegistryObject,
         NULL,
         0,
@@ -712,20 +712,24 @@ Return Value:
                 //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
                 //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
                 
-                size_t len = RegistryPath->Name.Length + RegistryName.Length;
-                PWCH RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len + (sizeof(WCHAR) * 2), 'reg');
-                wcscpy(RegistryFullPath, RegistryPath->Name.Buffer);
-                wcscat(RegistryFullPath, L"\\");
-                wcscat(RegistryFullPath, RegistryName.Buffer);
-                LARGE_INTEGER CurrentTime;
-                KeQuerySystemTime(&CurrentTime);
-                ExSystemTimeToLocalTime(&CurrentTime, &CurrentTime);
+                LARGE_INTEGER UTCTime;
+                KeQuerySystemTime(&UTCTime);
                 PREGDATA pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'reg');
-                pRegData->NotifyClass = NotifyClass;
-                pRegData->PID = PsGetCurrentProcessId();
-                pRegData->RegistryFullPath = RegistryFullPath;
-                pRegData->SystemTick = CurrentTime.QuadPart;
-                CreateData(pRegData, 2);
+                if (pRegData == NULL)
+                {
+                    DbgPrint("RegFilter,ExAllocatePool2 pRegData insufficient memory\n");
+                }
+                else
+                {
+                    pRegData->NotifyClass = NotifyClass;
+                    //pRegData->PID = PsGetCurrentProcessId();
+                    pRegData->PID = 0;
+                    wcscpy(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
+                    wcscat(pRegData->RegistryFullPath, L"\\");
+                    wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
+                    pRegData->SystemTick = UTCTime.QuadPart;
+                    CreateData(pRegData, 2);
+                }
             }
 
             ExFreePool(RegistryPath);

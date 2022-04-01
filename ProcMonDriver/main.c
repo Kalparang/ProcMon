@@ -2,12 +2,13 @@
 #include "OBCallback.h"
 #include "FSFilter.h"
 #include "RegFilter.h"
-#include "IOCTL.h"
+#include "IPC.h"
 
 //////////////////////////////////////////////////////////////////////////
 // Global data
 
 PDRIVER_OBJECT g_pDriverObject = NULL;
+BOOLEAN g_bExit = FALSE;
 
 //
 // Function declarations
@@ -16,12 +17,16 @@ DRIVER_INITIALIZE  DriverEntry;
 
 _Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH TdDeviceCreate;
 _Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH TdDeviceClose;
-_Dispatch_type_(IRP_MJ_CLEANUP) DRIVER_DISPATCH TdDeviceCleanup;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH TdDeviceControl;
 
 DRIVER_UNLOAD   TdDeviceUnload;
 
-KGUARDED_MUTEX ThreadMutex;
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, CreateSharedMemory)
+#pragma alloc_text(PAGE, DataInsertThread)
+#pragma alloc_text(PAGE, CreateData)
+#pragma alloc_text(PAGE, POPDataThread)
+#pragma alloc_text(PAGE, CallbackMonitor)
+#endif
 
 //
 // DriverEntry
@@ -49,21 +54,24 @@ DriverEntry(
         "ObCallback version 0x%hx\n", CallbackVersion);
 
     DriverObject->DriverUnload = TdDeviceUnload;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ioctlDeviceControl;
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = TdDeviceCreate;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = TdDeviceClose;
 
-    Status = FsFilterInit(DriverObject);
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-            "FsFilterInit fail : 0x%x\n", Status);
-    }
+    CreateSharedMemory();
 
-    Status = TdInitOBCallback();
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-            "TdInitOBCallback fail : 0x%x\n", Status);
-    }
+    //Status = FsFilterInit(DriverObject);
+    //if (!NT_SUCCESS(Status))
+    //{
+    //    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+    //        "FsFilterInit fail : 0x%x\n", Status);
+    //}
+
+    //Status = TdInitOBCallback();
+    //if (!NT_SUCCESS(Status))
+    //{
+    //    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+    //        "TdInitOBCallback fail : 0x%x\n", Status);
+    //}
 
     Status = RegFilterInit(DriverObject);
     if (!NT_SUCCESS(Status))
@@ -75,7 +83,7 @@ DriverEntry(
     DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
         "ProcMon DriverEntry: End 0x%x\n", Status);
 
-    IOInit();
+    //IOInit();
 
     return Status;
 }
@@ -97,16 +105,19 @@ TdDeviceUnload(
     _In_ PDRIVER_OBJECT DriverObject
 )
 {
+    UNREFERENCED_PARAMETER(DriverObject);
+
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-        "ProcMon: TdDeviceUnload\n");
+    g_bExit = TRUE;
+
+    ClearSharedMemory();
 
     //
     // remove any OB callbacks
     //
-    Status = TdDeleteOBCallback();
-    TD_ASSERT(Status == STATUS_SUCCESS);
+    //Status = TdDeleteOBCallback();
+    //TD_ASSERT(Status == STATUS_SUCCESS);
 
     Status = RegFilterUnload(DriverObject);
     if (!NT_SUCCESS(Status))
@@ -115,12 +126,12 @@ TdDeviceUnload(
             "RegFilterUnload fail : 0x%x\n", Status);
     }
 
-    Status = FsFilterUnload(DriverObject);
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-            "FsFilterUnload fail : 0x%x\n", Status);
-    }
+    //Status = FsFilterUnload(DriverObject);
+    //if (!NT_SUCCESS(Status))
+    //{
+    //    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+    //        "FsFilterUnload fail : 0x%x\n", Status);
+    //}
 
     DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
         "ProcMon: TdDeviceUnload End : 0x%x\n", Status);
@@ -198,28 +209,6 @@ TdDeviceCleanup(
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
-    return STATUS_SUCCESS;
-}
-
-//
-// Function:
-//
-//     TdDeviceControl
-//
-// Description:
-//
-//     This function handles 'control' irp.
-//
-
-NTSTATUS
-TdDeviceControl(
-    IN PDEVICE_OBJECT  DeviceObject,
-    IN PIRP  Irp
-)
-{
-    UNREFERENCED_PARAMETER(DeviceObject);
-    UNREFERENCED_PARAMETER(Irp);
 
     return STATUS_SUCCESS;
 }

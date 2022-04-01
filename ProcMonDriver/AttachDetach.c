@@ -40,7 +40,6 @@ FsFilterInit(
 )
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    ULONG i = 0;
 
     g_FsDriverObject = DriverObject;
 
