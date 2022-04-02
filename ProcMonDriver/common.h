@@ -24,10 +24,29 @@
         TRUE)
 
 //
+// Device type           -- in the "User Defined" range."
+//
+#define SIOCTL_TYPE 40000
+//
+// The IOCTL function codes from 0x800 to 0xFFF are for customer use.
+//
+#define IOCTL_CALLBACK_START \
+    CTL_CODE( SIOCTL_TYPE, 0x900, METHOD_IN_DIRECT, FILE_ANY_ACCESS  )
+
+#define IOCTL_CALLBACK_STOP \
+    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_IN_DIRECT , FILE_ANY_ACCESS  )
+
+#define IOCTL_TEST \
+    CTL_CODE( SIOCTL_TYPE, 0x902, METHOD_IN_DIRECT , FILE_ANY_ACCESS  )
+
+//
 // Driver and device names
 // It is important to change the names of the binaries
 // in the sample code to be unique for your own use.
 //
+
+#define NT_DEVICE_NAME L"\\Device\\ProcMonDriver"
+#define DOS_DEVICE_NAME L"\\DosDevices\\ProcMonDevice"
 
 #define OB_DRIVER_NAME             L"ProcMonOB"
 #define OB_DRIVER_NAME_WITH_EXT    L"ProcMonOB.sys"
@@ -57,3 +76,12 @@
 #define NAME_SIZE   200
 
 #define TD_INVALID_CALLBACK_ID ((ULONG)-1)
+
+/// <summary>
+/// IOCTL에서 IOCTL_CALLBACK_START, IOCTL_CALLBACK_STOP에서 쓰이는 inputbuffer
+/// </summary>
+typedef struct _ioCallbackControl
+{
+    LONG Type;
+    WCHAR CallbackPrefix[32];
+} ioCallbackControl, * PioCallbackControl;

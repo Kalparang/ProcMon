@@ -2,17 +2,51 @@
 #include <stdio.h>
 #include <conio.h>
 #include <tchar.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strsafe.h>
 
 #define PROC_MAX_PATH 32767
 
 #define PreShareMemory L"Global\\"
-#define SharedSectionName L"ProcSharedMemory"
-#define ObKernelEventName L"ProcObKernelEvent"
-#define ObUserEventName L"ProcObUserEvent"
-#define FsKernelEventName L"ProcFsKernelEvent"
-#define FsUserEventName L"ProcFsUserEvent"
-#define RegKernelEventName L"RegKernelEvent"
-#define RegUserEventName L"RegUserEvent"
+#define SharedSectionName L"SharedMemory"
+#define ObKernelEventName L"KernelEvent"
+#define ObUserEventName L"UserEvent"
+#define FsKernelEventName L"KernelEvent"
+#define FsUserEventName L"UserEvent"
+#define RegKernelEventName L"KernelEvent"
+#define RegUserEventName L"UserEvent"
+
+//
+// Device type           -- in the "User Defined" range."
+//
+#define SIOCTL_TYPE 40000
+//
+// The IOCTL function codes from 0x800 to 0xFFF are for customer use.
+//
+#define IOCTL_CALLBACK_START \
+    CTL_CODE( SIOCTL_TYPE, 0x900, METHOD_IN_DIRECT, FILE_ANY_ACCESS  )
+
+#define IOCTL_CALLBACK_STOP \
+    CTL_CODE( SIOCTL_TYPE, 0x901, METHOD_IN_DIRECT , FILE_ANY_ACCESS  )
+
+#define IOCTL_TEST \
+    CTL_CODE( SIOCTL_TYPE, 0x902, METHOD_IN_DIRECT , FILE_ANY_ACCESS  )
+
+//
+// Driver and device names
+// It is important to change the names of the binaries
+// in the sample code to be unique for your own use.
+//
+
+#define NT_DEVICE_NAME L"\\Device\\ProcMonDriver"
+#define DOS_DEVICE_NAME L"\\DosDevices\\ProcMonDevice"
+
+typedef struct _ioCallbackControl
+{
+    LONG Type;
+    WCHAR CallbackPrefix[32];
+} ioCallbackControl, * PioCallbackControl;
 
 typedef struct _OBDATA
 {
@@ -39,19 +73,40 @@ typedef struct _REGDATA
     WCHAR RegistryFullPath[PROC_MAX_PATH];	//RegistryPath + '\' + RegistryName
 } REGDATA, * PREGDATA;
 
-typedef struct IPCStruct
-{
-    OBDATA ObData;
-    FSDATA FsData;
-    REGDATA RegData;
-} IPCSTRUCT, * PIPCSTRUCT;
+#define BUF_SIZE sizeof(REGDATA)
+#define IOCTL_SIZE sizeof(ioCallbackControl)
 
-#define BUF_SIZE sizeof(IPCSTRUCT)
+char OutputBuffer[IOCTL_SIZE];
+char InputBuffer[IOCTL_SIZE];
 
 int _tmain()
 {
     HANDLE hMapFile;
     PVOID pBuf;
+    HANDLE hDevice;
+    BOOL bRc;
+    ULONG bytesReturned;
+    DWORD errNum = 0;
+    PioCallbackControl pIoControl = NULL;
+    WCHAR Prefix[] = L"regprefix";
+    WCHAR SharedMemoryName[1024] = { 0 };
+    WCHAR KernelEventName[1024] = { 0 };
+    WCHAR UserEventName[1024] = { 0 };
+    PREGDATA pRegData = NULL;
+    HANDLE KernelEvent;
+    HANDLE UserEvent;
+
+    wcscpy_s(SharedMemoryName, PreShareMemory);
+    wcscat_s(SharedMemoryName, Prefix);
+    wcscat_s(SharedMemoryName, L"SharedMemory");
+
+    wcscpy_s(KernelEventName, PreShareMemory);
+    wcscat_s(KernelEventName, Prefix);
+    wcscat_s(KernelEventName, L"KernelEvent");
+
+    wcscpy_s(UserEventName, PreShareMemory);
+    wcscat_s(UserEventName, Prefix);
+    wcscat_s(UserEventName, L"UserEvent");
 
     hMapFile = CreateFileMapping(
         INVALID_HANDLE_VALUE,    // use paging file
@@ -59,7 +114,7 @@ int _tmain()
         PAGE_READWRITE,          // read/write access
         0,                       // maximum object size (high-order DWORD)
         BUF_SIZE,                // maximum object size (low-order DWORD)
-        PreShareMemory SharedSectionName);                 // name of mapping object
+        SharedMemoryName);                 // name of mapping object
 
     if (hMapFile == NULL)
     {
@@ -83,36 +138,92 @@ int _tmain()
         return 1;
     }
 
-    PIPCSTRUCT pt = new IPCSTRUCT();
-    //WCHAR kernelName[] = PreShareMemory RegKernelEventName;
-    //WCHAR userName[] = PreShareMemory RegUserEventName;
-    HANDLE kernelSignal;
-    HANDLE userSignal;
+    _tprintf(_T("SharedMemory : %s\n"), SharedMemoryName);
+    _tprintf(_T("KernelEvent : %s\n"), KernelEventName);
+    _tprintf(_T("UserEvent : %s\n"), UserEventName);
 
-    //_tprintf(_T("KernelEventName : %s\n"), kernelName);
-    //_tprintf(_T("UserEventName : %s\n"), userName);
+    KernelEvent = CreateEvent(NULL, FALSE, FALSE, KernelEventName);
+    UserEvent = CreateEvent(NULL, FALSE, FALSE, UserEventName);
 
-    CopyMemory(pBuf, pt, sizeof(IPCSTRUCT));
-    delete pt;
+    pRegData = new REGDATA();
+    printf("InputBuffer Pointer = %p, BufLength = %Iu\n", InputBuffer,
+        sizeof(InputBuffer));
+    printf("OutputBuffer Pointer = %p BufLength = %Iu\n", OutputBuffer,
+        sizeof(OutputBuffer));
 
-    pt = (PIPCSTRUCT)pBuf;
-    PREGDATA pRegData = &pt->RegData;
+    pRegData->NotifyClass = 1;
+    pRegData->PID = 2;
+    pRegData->SystemTick = 3;
+    wcscpy_s(pRegData->RegistryFullPath, L"Registry Full Path");
 
-    kernelSignal = CreateEvent(NULL, FALSE, FALSE, PreShareMemory RegKernelEventName);
-    userSignal = CreateEvent(NULL, FALSE, FALSE, PreShareMemory RegUserEventName);
+    memcpy(pBuf, pRegData, sizeof(REGDATA));
+    delete pRegData;
 
-    SetEvent(kernelSignal);
+    printf("SharedMemory Create\n");
+    printf("Wait IOCTL\n");
+    _getch();
+
+    if ((hDevice = CreateFile(L"\\\\.\\ProcMonDevice",
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL)) == INVALID_HANDLE_VALUE) {
+
+        errNum = GetLastError();
+
+        if (errNum != ERROR_FILE_NOT_FOUND) {
+
+            printf("CreateFile failed : %d\n", errNum);
+
+            return 0;
+        }
+    }
+
+    pIoControl = (PioCallbackControl)InputBuffer;
+
+    pIoControl->Type = 2;
+    wcscpy_s(pIoControl->CallbackPrefix, 32, Prefix);
+
+    bRc = DeviceIoControl(
+        hDevice,
+        IOCTL_CALLBACK_START,
+        &InputBuffer,
+        sizeof(ioCallbackControl),
+        &OutputBuffer,
+        sizeof(ioCallbackControl),
+        &bytesReturned,
+        NULL
+    );
+    if (!bRc)
+    {
+        printf("Error in DeviceIoControl : %d", GetLastError());
+        return 0;
+    }
+
+    printf("set kernel\n");
+    _getch();
+
+    SetEvent(KernelEvent);
 
     while (true)
     {
-        WaitForSingleObject(userSignal, INFINITE);
-        
-        //_tprintf(_T("SystemTick : %lld\n"), pRegData->SystemTick);
-        //_tprintf(_T("PID : %ld\n"), pRegData->PID);
-        //_tprintf(_T("NotifyClass : %ld\n"), pRegData->NotifyClass);
-        //_tprintf(_T("RegistryFullPath : %s\n"), pRegData->RegistryFullPath);
+        _tprintf(_T("wait\n"));
 
-        SetEvent(kernelSignal);
+        WaitForSingleObject(UserEvent, INFINITE);
+
+        //memcpy(pRegData, pBuf, sizeof(REGDATA));
+        pRegData = (PREGDATA)pBuf;
+
+        _tprintf(_T("SystemTick : %lld\n"), pRegData->SystemTick++);
+        _tprintf(_T("PID : %ld\n"), pRegData->PID++);
+        _tprintf(_T("NotifyClass : %ld\n"), pRegData->NotifyClass++);
+        _tprintf(_T("RegistryFullPath : %s\n"), pRegData->RegistryFullPath);
+
+        _getch();
+
+        SetEvent(KernelEvent);
     }
 
     _getch();

@@ -54,6 +54,9 @@
     <ClCompile Include="IPC.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ObjectHelper.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FSFilter.h">
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="IPC.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ObjectHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

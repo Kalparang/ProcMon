@@ -728,7 +728,8 @@ Return Value:
                     wcscat(pRegData->RegistryFullPath, L"\\");
                     wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
                     pRegData->SystemTick = UTCTime.QuadPart;
-                    CreateData(pRegData, 2);
+                    //CreateData(pRegData, 2);
+                    ExFreePool(pRegData);
                 }
             }
 
