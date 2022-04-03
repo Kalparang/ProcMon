@@ -198,7 +198,6 @@ DeviceControl(
     pioControl = Irp->AssociatedIrp.SystemBuffer;
     outBuf = Irp->AssociatedIrp.SystemBuffer;
 
-    Status = IPC_Init(pioControl->Type, pioControl->CallbackPrefix);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint("main, DeviceControl, IPC_Init Fail : 0x%x\n", Status);
@@ -208,6 +207,7 @@ DeviceControl(
     switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
     case IOCTL_CALLBACK_START:
+        Status = IPC_Init(pioControl->Type, pioControl->CallbackPrefix);
         switch (pioControl->Type)
         {
         case 0:

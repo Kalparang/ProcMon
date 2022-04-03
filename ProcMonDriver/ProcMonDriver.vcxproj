@@ -163,7 +163,6 @@
     <ClCompile Include="main.c" />
     <ClCompile Include="Notification.c" />
     <ClCompile Include="OBCallback.c" />
-    <ClCompile Include="ObjectHelper.c" />
     <ClCompile Include="RegFilter.c" />
   </ItemGroup>
   <ItemGroup>
@@ -172,7 +171,6 @@
     <ClInclude Include="IOCTL.h" />
     <ClInclude Include="IPC.h" />
     <ClInclude Include="OBCallback.h" />
-    <ClInclude Include="ObjectHelper.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RegFilter.h" />
   </ItemGroup>

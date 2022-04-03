@@ -16,8 +16,14 @@ static KGUARDED_MUTEX ObMutex;
 static KGUARDED_MUTEX FsMutex;
 static KGUARDED_MUTEX RegMutex;
 
+static PLISTDATA g_pObList[2];
+static PLISTDATA g_pFsList[2];
+static PLISTDATA g_pRegList[2];
+
 extern PDRIVER_OBJECT g_pDriverObject;
 extern BOOLEAN g_bExit;
+
+static unsigned long long Num = 0;
 
 VOID
 POPDataThread(
@@ -143,7 +149,7 @@ IPC_Init(
 {
 	PAGED_CODE();
 
-	NTSTATUS ntStatus = STATUS_UNSUCCESSFUL;
+	NTSTATUS ntStatus = STATUS_SUCCESS;
 	HANDLE thread;
 	pPOPThreadData pThreadData;
 
@@ -218,21 +224,48 @@ POPDataThread(
 		break;
 	case 2:
 	{
-		PREGDATA pRegData = hSharedSection;
+		//PREGDATA pRegData = hSharedSection;
+		//PLISTDATA pRegListHead = NULL;
+		LARGE_INTEGER interval;
+		interval.QuadPart = (1 * -10 * 1000 * 1000);
+		//pRegListHead = g_pRegList[0];
 
 		while (1)
 		{
 			KeAcquireGuardedMutex(&RegMutex);
-			DbgPrint("2\n");
-			ZwWaitForSingleObject(hEvent[0], FALSE, NULL);
-			DbgPrint("3\n");
 
-			DbgPrint("PID : %ld\n", pRegData->PID++);
-			DbgPrint("Noti : %ld\n", pRegData->NotifyClass++);
-			DbgPrint("Tick : %lld\n", pRegData->SystemTick++);
-			DbgPrint("Tick : %ws\n", pRegData->RegistryFullPath);
+			if (g_pRegList[0] == NULL)
+			{
+				//DbgPrint("g_pRegList[0] is NULL\n");
+				KeReleaseGuardedMutex(&RegMutex);
+				KeDelayExecutionThread(KernelMode, FALSE, &interval);
+				continue;
+			}
+
+			if (g_pRegList[0]->Data == NULL)
+			{
+				DbgPrint("g_pRegList[0] No Data\n");
+				PVOID pCleanTarget = g_pRegList[0];
+				g_pRegList[0] = g_pRegList[0]->NextData;
+				ExFreePool(pCleanTarget);
+				KeReleaseGuardedMutex(&RegMutex);
+				KeDelayExecutionThread(KernelMode, FALSE, &interval);
+				continue;
+			}
+
+			ZwWaitForSingleObject(hEvent[0], FALSE, NULL);
+
+			RtlCopyBytes(hSharedSection, g_pRegList[0]->Data, sizeof(REGDATA));
 
 			ZwSetEvent(hEvent[1], NULL);
+
+			PLISTDATA pCleanTarget = g_pRegList[0];
+			g_pRegList[0] = g_pRegList[0]->NextData;
+			ExFreePool(pCleanTarget->Data);
+			if (g_pRegList[1] == pCleanTarget)
+				g_pRegList[1] = NULL;
+			ExFreePool(pCleanTarget);
+
 			KeReleaseGuardedMutex(&RegMutex);
 		}
 	}
@@ -243,6 +276,67 @@ POPDataThread(
 
 	ZwUnmapViewOfSection(NtCurrentProcess(), hSharedSection);
 	ZwClose(hSection);
+}
+
+VOID
+DataInsertThread(
+	PVOID ThreadContext
+)
+{
+	PCOMDATA pComData = ThreadContext;
+	LONG Type = 99;
+	PVOID pData = NULL;
+	
+	pData = pComData->Data;
+	Type = pComData->Type;
+	ExFreePool(pComData);
+
+	switch (Type)
+	{
+	case 0:
+		break;
+	case 1:
+		break;
+	case 2:
+	{
+		KeAcquireGuardedMutex(&RegMutex);
+		
+		if (g_pRegList[1] == NULL)
+		{
+			g_pRegList[1] = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'proc');
+			if (g_pRegList[1] == NULL)
+			{
+				DbgPrint("DataInsertThread Insuffcient memory\n");
+				ExFreePool(pData);
+				KeReleaseGuardedMutex(&RegMutex);
+				return;
+			}
+		}
+		else
+		{
+			g_pRegList[1]->NextData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'proc');
+			if (g_pRegList[1]->NextData == NULL)
+			{
+				DbgPrint("DataInsertThread Insuffcient memory\n");
+				ExFreePool(pData);
+				KeReleaseGuardedMutex(&RegMutex);
+				return;
+			}
+			g_pRegList[1] = g_pRegList[1]->NextData;
+		}
+		g_pRegList[1]->Data = pData;
+
+		if (g_pRegList[0] == NULL)
+			g_pRegList[0] = g_pRegList[1];
+
+		KeReleaseGuardedMutex(&RegMutex);
+	}
+		break;
+	default:
+		DbgPrint("DataInsertThread Unknown Type : %ld\n", Type);
+		ExFreePool(pData);
+		break;
+	}
 }
 
 /// <summary>
@@ -262,7 +356,7 @@ CreateData(
 {
 	PAGED_CODE();
 
-	//HANDLE thread = NULL;
+	HANDLE thread = NULL;
 	PCOMDATA ComData = NULL;
 
 	if (pData == NULL)
@@ -281,11 +375,11 @@ CreateData(
 	ComData->Data = pData;
 	ComData->Type = Type;
 
-	//IoCreateSystemThread(
-	//	g_pDriverObject,
-	//	&thread, THREAD_ALL_ACCESS,
-	//	NULL, NULL, NULL,
-	//	POPDataThread, ComData
-	//);
-	//ZwClose(thread);
+	IoCreateSystemThread(
+		g_pDriverObject,
+		&thread, THREAD_ALL_ACCESS,
+		NULL, NULL, NULL,
+		DataInsertThread, ComData
+	);
+	ZwClose(thread);
 }

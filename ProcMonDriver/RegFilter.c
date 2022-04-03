@@ -533,49 +533,49 @@ Return Value:
     switch (NotifyClass) {
     case RegNtPreDeleteKey:
     {
-        PREG_DELETE_KEY_INFORMATION PreDeleteKey =
-            (PREG_DELETE_KEY_INFORMATION)Argument2;
+        //PREG_DELETE_KEY_INFORMATION PreDeleteKey =
+        //    (PREG_DELETE_KEY_INFORMATION)Argument2;
 
-        if (PreDeleteKey->Object != NULL)
-            RegistryObject = PreDeleteKey->Object;
+        //if (PreDeleteKey->Object != NULL)
+        //    RegistryObject = PreDeleteKey->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
     }
     break;
     case RegNtPreSetValueKey:
     {
-        PREG_SET_VALUE_KEY_INFORMATION PreSetValueKey =
-            (PREG_SET_VALUE_KEY_INFORMATION)Argument2;
+        //PREG_SET_VALUE_KEY_INFORMATION PreSetValueKey =
+        //    (PREG_SET_VALUE_KEY_INFORMATION)Argument2;
 
-        if (PreSetValueKey->Object != NULL)
-            RegistryObject = PreSetValueKey->Object;
+        //if (PreSetValueKey->Object != NULL)
+        //    RegistryObject = PreSetValueKey->Object;
 
-        if (PreSetValueKey->ValueName != NULL)
-            if (PreSetValueKey->ValueName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreSetValueKey->ValueName->Buffer);
+        //if (PreSetValueKey->ValueName != NULL)
+        //    if (PreSetValueKey->ValueName->Buffer != NULL)
+        //        RtlInitUnicodeString(&RegistryName, PreSetValueKey->ValueName->Buffer);
     }
     break;
     case RegNtPreDeleteValueKey:
     {
-        PREG_DELETE_VALUE_KEY_INFORMATION PreDeleteValueKey =
-            (PREG_DELETE_VALUE_KEY_INFORMATION)Argument2;
+        //PREG_DELETE_VALUE_KEY_INFORMATION PreDeleteValueKey =
+        //    (PREG_DELETE_VALUE_KEY_INFORMATION)Argument2;
 
-        if (PreDeleteValueKey->Object != NULL)
-            RegistryObject = PreDeleteValueKey->Object;
+        //if (PreDeleteValueKey->Object != NULL)
+        //    RegistryObject = PreDeleteValueKey->Object;
 
-        if (PreDeleteValueKey->ValueName != NULL)
-            if (PreDeleteValueKey->ValueName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreDeleteValueKey->ValueName->Buffer);
+        //if (PreDeleteValueKey->ValueName != NULL)
+        //    if (PreDeleteValueKey->ValueName->Buffer != NULL)
+        //        RtlInitUnicodeString(&RegistryName, PreDeleteValueKey->ValueName->Buffer);
     }
     break;
     //case RegNtPreSetInformationKey:
     case RegNtPreRenameKey:
     {
-        PREG_RENAME_KEY_INFORMATION PreRenameKey =
-            (PREG_RENAME_KEY_INFORMATION)Argument2;
+        //PREG_RENAME_KEY_INFORMATION PreRenameKey =
+        //    (PREG_RENAME_KEY_INFORMATION)Argument2;
 
-        if (PreRenameKey->Object != NULL)
-            RegistryObject = PreRenameKey->Object;
+        //if (PreRenameKey->Object != NULL)
+        //    RegistryObject = PreRenameKey->Object;
 
         //if (PreRenameKey->NewName != NULL)
         //    if (PreRenameKey->NewName->Buffer != NULL)
@@ -586,36 +586,36 @@ Return Value:
     //case RegNtPreEnumerateValueKey:
     case RegNtPreQueryKey:
     {
-        PREG_QUERY_KEY_INFORMATION PreQueryKey =
-            (PREG_QUERY_KEY_INFORMATION)Argument2;
+        //PREG_QUERY_KEY_INFORMATION PreQueryKey =
+        //    (PREG_QUERY_KEY_INFORMATION)Argument2;
 
-        if (PreQueryKey->Object != NULL)
-            RegistryObject = PreQueryKey->Object;
+        //if (PreQueryKey->Object != NULL)
+        //    RegistryObject = PreQueryKey->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
     }
     break;
     case RegNtPreQueryValueKey:
     {
-        PREG_QUERY_VALUE_KEY_INFORMATION PreQueryValueKey =
-            (PREG_QUERY_VALUE_KEY_INFORMATION)Argument2;
+        //PREG_QUERY_VALUE_KEY_INFORMATION PreQueryValueKey =
+        //    (PREG_QUERY_VALUE_KEY_INFORMATION)Argument2;
 
-        if (PreQueryValueKey->Object != NULL)
-            RegistryObject = PreQueryValueKey->Object;
+        //if (PreQueryValueKey->Object != NULL)
+        //    RegistryObject = PreQueryValueKey->Object;
 
-        if (PreQueryValueKey->ValueName != NULL)
-            if (PreQueryValueKey->ValueName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreQueryValueKey->ValueName->Buffer);
+        //if (PreQueryValueKey->ValueName != NULL)
+        //    if (PreQueryValueKey->ValueName->Buffer != NULL)
+        //        RtlInitUnicodeString(&RegistryName, PreQueryValueKey->ValueName->Buffer);
     }
     break;
     //case RegNtPreQueryMultipleValueKey:
     case RegNtPreKeyHandleClose:
     {
-        PREG_KEY_HANDLE_CLOSE_INFORMATION PreKeyHandleClose =
-            (PREG_KEY_HANDLE_CLOSE_INFORMATION)Argument2;
+        //PREG_KEY_HANDLE_CLOSE_INFORMATION PreKeyHandleClose =
+        //    (PREG_KEY_HANDLE_CLOSE_INFORMATION)Argument2;
 
-        if (PreKeyHandleClose->Object != NULL)
-            RegistryObject = PreKeyHandleClose->Object;
+        //if (PreKeyHandleClose->Object != NULL)
+        //    RegistryObject = PreKeyHandleClose->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
     }
@@ -680,6 +680,7 @@ Return Value:
     //    InterlockedIncrement(&CallbackCtx->PostNotificationCount);
     //    break;
     default:
+        return;
         break;
     }
 
@@ -728,8 +729,8 @@ Return Value:
                     wcscat(pRegData->RegistryFullPath, L"\\");
                     wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
                     pRegData->SystemTick = UTCTime.QuadPart;
-                    //CreateData(pRegData, 2);
-                    ExFreePool(pRegData);
+                    CreateData(pRegData, 2);
+                    //ExFreePool(pRegData);
                 }
             }
 

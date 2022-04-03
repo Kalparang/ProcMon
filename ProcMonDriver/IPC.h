@@ -3,6 +3,12 @@
 
 #define PROC_MAX_PATH 32767
 
+typedef struct _LISTDATA
+{
+	PVOID Data;
+	PVOID NextData;
+} LISTDATA, * PLISTDATA;
+
 typedef struct _OBDATA
 {
 	INT64 SystemTick;	// count of 100-nanosecond intervals since January 1, 1601

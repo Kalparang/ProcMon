@@ -206,22 +206,24 @@ int _tmain()
     _getch();
 
     SetEvent(KernelEvent);
+    pRegData = (PREGDATA)pBuf;
+
+    unsigned long long Num = 0;
 
     while (true)
     {
-        _tprintf(_T("wait\n"));
-
         WaitForSingleObject(UserEvent, INFINITE);
 
         //memcpy(pRegData, pBuf, sizeof(REGDATA));
-        pRegData = (PREGDATA)pBuf;
 
-        _tprintf(_T("SystemTick : %lld\n"), pRegData->SystemTick++);
-        _tprintf(_T("PID : %ld\n"), pRegData->PID++);
-        _tprintf(_T("NotifyClass : %ld\n"), pRegData->NotifyClass++);
-        _tprintf(_T("RegistryFullPath : %s\n"), pRegData->RegistryFullPath);
+        _tprintf(_T("%lld\n"), pRegData->SystemTick);
 
-        _getch();
+        //_tprintf(_T("SystemTick : %lld\n"), pRegData->SystemTick);
+        //_tprintf(_T("PID : %ld\n"), pRegData->PID);
+        //_tprintf(_T("NotifyClass : %ld\n"), pRegData->NotifyClass);
+        //_tprintf(_T("RegistryFullPath : %s\n"), pRegData->RegistryFullPath);
+
+        //_getch();
 
         SetEvent(KernelEvent);
     }
