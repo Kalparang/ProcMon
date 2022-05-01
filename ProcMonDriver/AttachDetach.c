@@ -40,6 +40,7 @@ FsFilterInit(
 )
 {
     NTSTATUS Status = STATUS_SUCCESS;
+    ULONG i;
 
     g_FsDriverObject = DriverObject;
 
@@ -47,15 +48,10 @@ FsFilterInit(
     // Initialize the driver object dispatch table.
     //
 
-    //for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; ++i)
-    //{
-    //    DriverObject->MajorFunction[i] = FsFilterDispatchPassThrough;
-    //}
-
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = FsFilterDispatchPassThrough;
-    DriverObject->MajorFunction[IRP_MJ_CLOSE] = FsFilterDispatchPassThrough;
-    DriverObject->MajorFunction[IRP_MJ_READ] = FsFilterDispatchPassThrough;
-    DriverObject->MajorFunction[IRP_MJ_WRITE] = FsFilterDispatchPassThrough;
+    for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; ++i)
+    {
+        DriverObject->MajorFunction[i] = FsFilterDispatchPassThrough;
+    }
 
     //
     // Set fast-io dispatch table.
