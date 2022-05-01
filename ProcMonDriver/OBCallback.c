@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "OBCallback.h"
+#include "IPC.h"
 
 //
 // Globals
@@ -133,6 +134,8 @@ CBTdPreOperationCallback(
     _Inout_ POB_PRE_OPERATION_INFORMATION PreInfo
 )
 {
+    PAGED_CODE();
+
     PTD_CALLBACK_REGISTRATION CallbackRegistration;
 
     ACCESS_MASK AccessBitsToClear = 0;
@@ -145,6 +148,11 @@ CBTdPreOperationCallback(
 
     LPCWSTR ObjectTypeName = NULL;
     LPCWSTR OperationName = NULL;
+
+    POBDATA obData = NULL;
+    LARGE_INTEGER UTCTime;
+
+    KeQuerySystemTime(&UTCTime);
 
     // Not using driver specific values at this time
     CallbackRegistration = (PTD_CALLBACK_REGISTRATION)RegistrationContext;
@@ -237,6 +245,18 @@ CBTdPreOperationCallback(
     //    OriginalDesiredAccess,
     //    InitialDesiredAccess
     //);
+
+    obData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(OBDATA), 'ob');
+    if (obData == NULL)
+        goto Exit;
+
+    obData->SystemTick = UTCTime.QuadPart;
+    obData->PID = 0;
+    obData->TargetPID = 0;
+    obData->Operation = PreInfo->Operation;
+    obData->DesiredAccess = OriginalDesiredAccess;
+
+    CreateData(obData, 0);
 
 Exit:
 

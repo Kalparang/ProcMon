@@ -82,7 +82,7 @@ char InputBuffer[IOCTL_SIZE];
 int _tmain()
 {
     HANDLE hMapFile;
-    PVOID pBuf;
+    PVOID pBuf = NULL;
     HANDLE hDevice;
     BOOL bRc;
     ULONG bytesReturned;
@@ -92,9 +92,12 @@ int _tmain()
     WCHAR SharedMemoryName[1024] = { 0 };
     WCHAR KernelEventName[1024] = { 0 };
     WCHAR UserEventName[1024] = { 0 };
+    POBDATA pObData = NULL;
     PREGDATA pRegData = NULL;
+    PFSDATA pFsData = NULL;
     HANDLE KernelEvent;
     HANDLE UserEvent;
+    int Type = 0;
 
     wcscpy_s(SharedMemoryName, PreShareMemory);
     wcscat_s(SharedMemoryName, Prefix);
@@ -108,36 +111,6 @@ int _tmain()
     wcscat_s(UserEventName, Prefix);
     wcscat_s(UserEventName, L"UserEvent");
 
-    hMapFile = CreateFileMapping(
-        INVALID_HANDLE_VALUE,    // use paging file
-        NULL,                    // default security
-        PAGE_READWRITE,          // read/write access
-        0,                       // maximum object size (high-order DWORD)
-        BUF_SIZE,                // maximum object size (low-order DWORD)
-        SharedMemoryName);                 // name of mapping object
-
-    if (hMapFile == NULL)
-    {
-        _tprintf(TEXT("Could not create file mapping object (%d).\n"),
-            GetLastError());
-        return 1;
-    }
-    pBuf = MapViewOfFile(hMapFile,   // handle to map object
-        FILE_MAP_ALL_ACCESS, // read/write permission
-        0,
-        0,
-        BUF_SIZE);
-
-    if (pBuf == NULL)
-    {
-        _tprintf(TEXT("Could not map view of file (%d).\n"),
-            GetLastError());
-
-        CloseHandle(hMapFile);
-
-        return 1;
-    }
-
     _tprintf(_T("SharedMemory : %s\n"), SharedMemoryName);
     _tprintf(_T("KernelEvent : %s\n"), KernelEventName);
     _tprintf(_T("UserEvent : %s\n"), UserEventName);
@@ -145,19 +118,137 @@ int _tmain()
     KernelEvent = CreateEvent(NULL, FALSE, FALSE, KernelEventName);
     UserEvent = CreateEvent(NULL, FALSE, FALSE, UserEventName);
 
-    pRegData = new REGDATA();
-    printf("InputBuffer Pointer = %p, BufLength = %Iu\n", InputBuffer,
-        sizeof(InputBuffer));
-    printf("OutputBuffer Pointer = %p BufLength = %Iu\n", OutputBuffer,
-        sizeof(OutputBuffer));
+    switch (Type)
+    {
+    case 0:
+        hMapFile = CreateFileMapping(
+            INVALID_HANDLE_VALUE,    // use paging file
+            NULL,                    // default security
+            PAGE_READWRITE,          // read/write access
+            0,                       // maximum object size (high-order DWORD)
+            sizeof(OBDATA),                // maximum object size (low-order DWORD)
+            SharedMemoryName);                 // name of mapping object
 
-    pRegData->NotifyClass = 1;
-    pRegData->PID = 2;
-    pRegData->SystemTick = 3;
-    wcscpy_s(pRegData->RegistryFullPath, L"Registry Full Path");
+        if (hMapFile == NULL)
+        {
+            _tprintf(TEXT("Could not create file mapping object (%d).\n"),
+                GetLastError());
+            return 1;
+        }
+        pBuf = MapViewOfFile(hMapFile,   // handle to map object
+            FILE_MAP_ALL_ACCESS, // read/write permission
+            0,
+            0,
+            sizeof(OBDATA));
 
-    memcpy(pBuf, pRegData, sizeof(REGDATA));
-    delete pRegData;
+        if (pBuf == NULL)
+        {
+            _tprintf(TEXT("Could not map view of file (%d).\n"),
+                GetLastError());
+
+            CloseHandle(hMapFile);
+
+            return 1;
+        }
+
+        pObData = new OBDATA();
+
+        pObData->DesiredAccess = 1;
+        pObData->Operation = 2;
+        pObData->PID = 3;
+        pObData->SystemTick = 4;
+        pObData->TargetPID = 5;
+
+        memcpy(pBuf, pObData, sizeof(OBDATA));
+        delete pObData;
+
+        break;
+    case 1:
+        hMapFile = CreateFileMapping(
+            INVALID_HANDLE_VALUE,    // use paging file
+            NULL,                    // default security
+            PAGE_READWRITE,          // read/write access
+            0,                       // maximum object size (high-order DWORD)
+            sizeof(FSDATA),                // maximum object size (low-order DWORD)
+            SharedMemoryName);                 // name of mapping object
+
+        if (hMapFile == NULL)
+        {
+            _tprintf(TEXT("Could not create file mapping object (%d).\n"),
+                GetLastError());
+            return 1;
+        }
+        pBuf = MapViewOfFile(hMapFile,   // handle to map object
+            FILE_MAP_ALL_ACCESS, // read/write permission
+            0,
+            0,
+            sizeof(FSDATA));
+
+        if (pBuf == NULL)
+        {
+            _tprintf(TEXT("Could not map view of file (%d).\n"),
+                GetLastError());
+
+            CloseHandle(hMapFile);
+
+            return 1;
+        }
+
+        pFsData = new FSDATA();
+
+        pFsData->MajorFunction = 1;
+        pFsData->PID = 2;
+        pFsData->SystemTick = 3;
+        wcscpy_s(pFsData->FileName, L"File Full Path");
+
+        memcpy(pBuf, pFsData, sizeof(FSDATA));
+        delete pFsData;
+
+        break;
+    case 2:
+        hMapFile = CreateFileMapping(
+            INVALID_HANDLE_VALUE,    // use paging file
+            NULL,                    // default security
+            PAGE_READWRITE,          // read/write access
+            0,                       // maximum object size (high-order DWORD)
+            BUF_SIZE,                // maximum object size (low-order DWORD)
+            SharedMemoryName);                 // name of mapping object
+
+        if (hMapFile == NULL)
+        {
+            _tprintf(TEXT("Could not create file mapping object (%d).\n"),
+                GetLastError());
+            return 1;
+        }
+        pBuf = MapViewOfFile(hMapFile,   // handle to map object
+            FILE_MAP_ALL_ACCESS, // read/write permission
+            0,
+            0,
+            BUF_SIZE);
+
+        if (pBuf == NULL)
+        {
+            _tprintf(TEXT("Could not map view of file (%d).\n"),
+                GetLastError());
+
+            CloseHandle(hMapFile);
+
+            return 1;
+        }
+
+        pRegData = new REGDATA();
+
+        pRegData->NotifyClass = 1;
+        pRegData->PID = 2;
+        pRegData->SystemTick = 3;
+        wcscpy_s(pRegData->RegistryFullPath, L"Registry Full Path");
+
+        memcpy(pBuf, pRegData, sizeof(REGDATA));
+        delete pRegData;
+        break;
+    default:
+        break;
+    }
 
     printf("SharedMemory Create\n");
     printf("Wait IOCTL\n");
@@ -183,7 +274,7 @@ int _tmain()
 
     pIoControl = (PioCallbackControl)InputBuffer;
 
-    pIoControl->Type = 2;
+    pIoControl->Type = Type;
     wcscpy_s(pIoControl->CallbackPrefix, 32, Prefix);
 
     bRc = DeviceIoControl(
@@ -206,9 +297,21 @@ int _tmain()
     _getch();
 
     SetEvent(KernelEvent);
-    pRegData = (PREGDATA)pBuf;
 
-    unsigned long long Num = 0;
+    switch (Type)
+    {
+    case 0:
+        pObData = (POBDATA)pBuf;
+        break;
+    case 1:
+        pFsData = (PFSDATA)pBuf;
+        break;
+    case 2:
+        pRegData = (PREGDATA)pBuf;
+        break;
+    default:
+        break;
+    }
 
     while (true)
     {
@@ -216,7 +319,22 @@ int _tmain()
 
         //memcpy(pRegData, pBuf, sizeof(REGDATA));
 
-        _tprintf(_T("%lld\n"), pRegData->SystemTick);
+        switch (Type)
+        {
+        case 0:
+            _tprintf(_T("%lld\n"), pObData->SystemTick);
+            _tprintf(_T("%lu\n"), pObData->Operation);
+            break;
+        case 1:
+            _tprintf(_T("%lld\n"), pFsData->SystemTick);
+            _tprintf(_T("%s\n"), pFsData->FileName);
+            break;
+        case 2:
+            _tprintf(_T("%lld\n"), pRegData->SystemTick);
+            break;
+        default:
+            break;
+        }
 
         //_tprintf(_T("SystemTick : %lld\n"), pRegData->SystemTick);
         //_tprintf(_T("PID : %ld\n"), pRegData->PID);

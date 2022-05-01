@@ -526,6 +526,10 @@ Return Value:
     PVOID RegistryObject = NULL;
     UNICODE_STRING RegistryName = { 0 };
     UNICODE_STRING NotifyClassString = { 0 };
+    LARGE_INTEGER UTCTime;
+    size_t len = 0;
+
+    KeQuerySystemTime(&UTCTime);
 
     RtlInitUnicodeString(&RegistryName, L"");
     RtlInitUnicodeString(&NotifyClassString, GetNotifyClassString(NotifyClass));
@@ -713,9 +717,7 @@ Return Value:
                 //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
                 //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
                 
-                LARGE_INTEGER UTCTime;
-                KeQuerySystemTime(&UTCTime);
-                PREGDATA pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'reg');
+                PREGDATA2 pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
                 if (pRegData == NULL)
                 {
                     DbgPrint("RegFilter,ExAllocatePool2 pRegData insufficient memory\n");
@@ -725,11 +727,39 @@ Return Value:
                     pRegData->NotifyClass = NotifyClass;
                     //pRegData->PID = PsGetCurrentProcessId();
                     pRegData->PID = 0;
-                    wcscpy(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
-                    wcscat(pRegData->RegistryFullPath, L"\\");
-                    wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
+                    pRegData->RegistryFullPath = NULL;
                     pRegData->SystemTick = UTCTime.QuadPart;
-                    CreateData(pRegData, 2);
+
+                    len = 2;
+
+                    if (RegistryPath->Name.Buffer != NULL)
+                        len += wcslen(RegistryPath->Name.Buffer);
+                    if (RegistryName.Buffer != NULL)
+                        len += wcslen(RegistryName.Buffer);
+                    len *= sizeof(WCHAR);
+
+                    if (RegistryPath->Name.Buffer != NULL || RegistryName.Buffer != NULL)
+                    {
+                        pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
+                        if (pRegData->RegistryFullPath == NULL)
+                        {
+                            DbgPrint("RegFilter,ExAllocatePool2 pRegData insufficient memory\n");
+                            ExFreePool(pRegData);
+                        }
+                        else
+                        {
+                            if (RegistryPath->Name.Buffer != NULL)
+                                wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
+                            wcscat(pRegData->RegistryFullPath, L"\\");
+                            if(RegistryName.Buffer != NULL)
+                                wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
+                        }
+                    }
+
+                    if(pRegData != NULL)
+                        CreateData(pRegData, 2);
+
+                    //ExFreePool(pRegData->RegistryFullPath);
                     //ExFreePool(pRegData);
                 }
             }

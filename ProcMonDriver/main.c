@@ -31,6 +31,8 @@ DRIVER_UNLOAD   TdDeviceUnload;
 #pragma alloc_text(PAGE, POPDataThread)
 #pragma alloc_text(PAGE, DeviceControl)
 #pragma alloc_text(PAGE, CallbackMonitor)
+#pragma alloc_text(PAGE, FsFilterDispatchPassThrough)
+#pragma alloc_text(PAGE, CBTdPreOperationCallback)
 #endif
 
 //
@@ -47,8 +49,7 @@ DriverEntry(
 
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-        "ProcMon DriverEntry\n");
+    DbgPrint("ProcMon DriverEntry\n");
 
     g_pDriverObject = DriverObject;
 
@@ -88,8 +89,7 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = TdDeviceClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceControl;
 
-    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-        "ProcMon DriverEntry Success\n");
+    DbgPrint("ProcMon DriverEntry Success\n");
 
     return Status;
 }
@@ -211,19 +211,6 @@ DeviceControl(
         switch (pioControl->Type)
         {
         case 0:
-            Status = FsFilterInit(g_pDriverObject);
-            if (!NT_SUCCESS(Status))
-            {
-                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-                    "FsFilterInit fail : 0x%x\n", Status);
-            }
-            else
-            {
-                g_bFsCallBack = TRUE;
-                DbgPrint("FileSystem Filter Success\n");
-            }
-            break;
-        case 1:
             Status = TdInitOBCallback();
             if (!NT_SUCCESS(Status))
             {
@@ -235,6 +222,20 @@ DeviceControl(
                 g_bObCallBack = TRUE;
                 DbgPrint("OB Callback Success\n");
             }
+            break;
+        case 1:
+            Status = FsFilterInit(g_pDriverObject);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+                    "FsFilterInit fail : 0x%x\n", Status);
+            }
+            else
+            {
+                g_bFsCallBack = TRUE;
+                DbgPrint("FileSystem Filter Success\n");
+            }
+
             break;
         case 2:
             Status = RegFilterInit(g_pDriverObject);
