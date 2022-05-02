@@ -33,7 +33,7 @@ NTSTATUS FsFilterDispatchPassThrough(
             if (pFsData != NULL)
             {
                 pFsData->MajorFunction = pStackLocation->MajorFunction;
-                pFsData->PID = 0;
+                pFsData->PID = PsGetCurrentProcessId();
                 pFsData->SystemTick = UTCTime.QuadPart;
                 pFsData->FileName = NULL;
 

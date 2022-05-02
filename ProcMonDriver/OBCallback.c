@@ -251,8 +251,8 @@ CBTdPreOperationCallback(
         goto Exit;
 
     obData->SystemTick = UTCTime.QuadPart;
-    obData->PID = 0;
-    obData->TargetPID = 0;
+    obData->PID = PsGetCurrentProcessId();
+    obData->TargetPID = PsGetProcessId(PreInfo->Object);
     obData->Operation = PreInfo->Operation;
     obData->DesiredAccess = OriginalDesiredAccess;
 

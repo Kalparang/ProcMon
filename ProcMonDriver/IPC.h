@@ -12,8 +12,8 @@ typedef struct _LISTDATA
 typedef struct _OBDATA
 {
 	INT64 SystemTick;	// count of 100-nanosecond intervals since January 1, 1601
-	LONG PID;
-	LONG TargetPID;
+	HANDLE PID;
+	HANDLE TargetPID;
 	OB_OPERATION Operation;
 	ACCESS_MASK DesiredAccess;
 } OBDATA, * POBDATA;
@@ -21,7 +21,7 @@ typedef struct _OBDATA
 typedef struct _FSDATA
 {
 	INT64 SystemTick;
-	LONG PID;
+	HANDLE PID;
 	UCHAR MajorFunction;
 	WCHAR FileName[PROC_MAX_PATH];
 } FSDATA, * PFSDATA;
@@ -29,7 +29,7 @@ typedef struct _FSDATA
 typedef struct _FSDATA2
 {
 	INT64 SystemTick;
-	LONG PID;
+	HANDLE PID;
 	UCHAR MajorFunction;
 	PWCH FileName;
 } FSDATA2, * PFSDATA2;
@@ -37,7 +37,7 @@ typedef struct _FSDATA2
 typedef struct _REGDATA
 {
 	INT64 SystemTick;
-	LONG PID;
+	HANDLE PID;
 	LONG NotifyClass;
 	WCHAR RegistryFullPath[PROC_MAX_PATH];	//RegistryPath + '\' + RegistryName
 } REGDATA, * PREGDATA;
@@ -45,7 +45,7 @@ typedef struct _REGDATA
 typedef struct _REGDATA2
 {
 	INT64 SystemTick;
-	LONG PID;
+	HANDLE PID;
 	LONG NotifyClass;
 	WCHAR* RegistryFullPath;	//RegistryPath + '\' + RegistryName
 } REGDATA2, * PREGDATA2;

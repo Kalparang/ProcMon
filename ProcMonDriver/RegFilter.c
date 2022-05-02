@@ -521,22 +521,31 @@ Return Value:
     PAGED_CODE();
 
     NTSTATUS Status = STATUS_SUCCESS;
-    POBJECT_NAME_INFORMATION RegistryPath;
+    POBJECT_NAME_INFORMATION RegistryPath = NULL;
     ULONG nReturnBytes;
     PVOID RegistryObject = NULL;
-    UNICODE_STRING RegistryName = { 0 };
-    UNICODE_STRING NotifyClassString = { 0 };
+    PWCH RegistryName = NULL;
+    PWCH NotifyClassString = NULL;
     LARGE_INTEGER UTCTime;
     size_t len = 0;
+    PREGDATA2 pRegData = NULL;
 
     KeQuerySystemTime(&UTCTime);
 
-    RtlInitUnicodeString(&RegistryName, L"");
-    RtlInitUnicodeString(&NotifyClassString, GetNotifyClassString(NotifyClass));
+    len = wcslen(GetNotifyClassString(NotifyClass)) + 1;
+    len *= sizeof(WCHAR);
 
-    switch (NotifyClass) {
-    case RegNtPreDeleteKey:
+    NotifyClassString = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
+    if (NotifyClassString == NULL)
+        goto Exit;
+
+    wcscpy(NotifyClassString, GetNotifyClassString(NotifyClass));
+    len = 0;
+
+    switch (NotifyClass)
     {
+    //case RegNtPreDeleteKey:
+    //{
         //PREG_DELETE_KEY_INFORMATION PreDeleteKey =
         //    (PREG_DELETE_KEY_INFORMATION)Argument2;
 
@@ -544,10 +553,10 @@ Return Value:
         //    RegistryObject = PreDeleteKey->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
-    }
-    break;
-    case RegNtPreSetValueKey:
-    {
+    //}
+    //break;
+    //case RegNtPreSetValueKey:
+    //{
         //PREG_SET_VALUE_KEY_INFORMATION PreSetValueKey =
         //    (PREG_SET_VALUE_KEY_INFORMATION)Argument2;
 
@@ -557,10 +566,10 @@ Return Value:
         //if (PreSetValueKey->ValueName != NULL)
         //    if (PreSetValueKey->ValueName->Buffer != NULL)
         //        RtlInitUnicodeString(&RegistryName, PreSetValueKey->ValueName->Buffer);
-    }
-    break;
-    case RegNtPreDeleteValueKey:
-    {
+    //}
+    //break;
+    //case RegNtPreDeleteValueKey:
+    //{
         //PREG_DELETE_VALUE_KEY_INFORMATION PreDeleteValueKey =
         //    (PREG_DELETE_VALUE_KEY_INFORMATION)Argument2;
 
@@ -570,11 +579,11 @@ Return Value:
         //if (PreDeleteValueKey->ValueName != NULL)
         //    if (PreDeleteValueKey->ValueName->Buffer != NULL)
         //        RtlInitUnicodeString(&RegistryName, PreDeleteValueKey->ValueName->Buffer);
-    }
-    break;
+    //}
+    //break;
     //case RegNtPreSetInformationKey:
-    case RegNtPreRenameKey:
-    {
+    //case RegNtPreRenameKey:
+    //{
         //PREG_RENAME_KEY_INFORMATION PreRenameKey =
         //    (PREG_RENAME_KEY_INFORMATION)Argument2;
 
@@ -584,12 +593,12 @@ Return Value:
         //if (PreRenameKey->NewName != NULL)
         //    if (PreRenameKey->NewName->Buffer != NULL)
         //        RtlInitUnicodeString(&RegistryName, PreRenameKey->NewName->Buffer);
-    }
-    break;
+    //}
+    //break;
     //case RegNtPreEnumerateKey:
     //case RegNtPreEnumerateValueKey:
-    case RegNtPreQueryKey:
-    {
+    //case RegNtPreQueryKey:
+    //{
         //PREG_QUERY_KEY_INFORMATION PreQueryKey =
         //    (PREG_QUERY_KEY_INFORMATION)Argument2;
 
@@ -597,10 +606,10 @@ Return Value:
         //    RegistryObject = PreQueryKey->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
-    }
-    break;
-    case RegNtPreQueryValueKey:
-    {
+    //}
+    //break;
+    //case RegNtPreQueryValueKey:
+    //{
         //PREG_QUERY_VALUE_KEY_INFORMATION PreQueryValueKey =
         //    (PREG_QUERY_VALUE_KEY_INFORMATION)Argument2;
 
@@ -610,11 +619,11 @@ Return Value:
         //if (PreQueryValueKey->ValueName != NULL)
         //    if (PreQueryValueKey->ValueName->Buffer != NULL)
         //        RtlInitUnicodeString(&RegistryName, PreQueryValueKey->ValueName->Buffer);
-    }
-    break;
+    //}
+    //break;
     //case RegNtPreQueryMultipleValueKey:
-    case RegNtPreKeyHandleClose:
-    {
+    //case RegNtPreKeyHandleClose:
+    //{
         //PREG_KEY_HANDLE_CLOSE_INFORMATION PreKeyHandleClose =
         //    (PREG_KEY_HANDLE_CLOSE_INFORMATION)Argument2;
 
@@ -622,34 +631,28 @@ Return Value:
         //    RegistryObject = PreKeyHandleClose->Object;
 
         //RtlInitUnicodeString(&RegistryName, L"");
-    }
-    break;
+    //}
+    //break;
     case RegNtPreCreateKeyEx:
-    {
-        PREG_CREATE_KEY_INFORMATION_V1 PreCreateKeyV1 =
-            (PREG_CREATE_KEY_INFORMATION_V1)Argument2;
+        if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject != NULL)
+            RegistryObject = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject;
 
-        if (PreCreateKeyV1->RootObject != NULL)
-            RegistryObject = PreCreateKeyV1->RootObject;
-
-        if (PreCreateKeyV1->CompleteName != NULL)
-            if (PreCreateKeyV1->CompleteName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreCreateKeyV1->CompleteName->Buffer);
-    }
-    break;
+        if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
+            if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer != NULL)
+            {
+                RegistryName = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer;
+            }
+        break;
     case RegNtPreOpenKeyEx:
-    {
-        PREG_OPEN_KEY_INFORMATION_V1 PreOpenKeyV1 =
-            (PREG_OPEN_KEY_INFORMATION_V1)Argument2;
+		if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject != NULL)
+			RegistryObject = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject;
 
-        if (PreOpenKeyV1->RootObject != NULL)
-            RegistryObject = PreOpenKeyV1->RootObject;
-
-        if (PreOpenKeyV1->CompleteName != NULL)
-            if (PreOpenKeyV1->CompleteName->Buffer != NULL)
-                RtlInitUnicodeString(&RegistryName, PreOpenKeyV1->CompleteName->Buffer);
-    }
-    break;
+		if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
+			if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer != NULL)
+			{
+				RegistryName = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer;
+			}
+        break;
     //case RegNtPreFlushKey:
     //case RegNtPreLoadKey:
     //case RegNtPreUnLoadKey:
@@ -684,96 +687,96 @@ Return Value:
     //    InterlockedIncrement(&CallbackCtx->PostNotificationCount);
     //    break;
     default:
-        return;
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
         break;
     }
 
-    if (RegistryObject == NULL)
+    __try
     {
-        return;
-    }
-    
-    Status = ObQueryNameString(RegistryObject,
-        NULL,
-        0,
-        &nReturnBytes);
-    if (Status == STATUS_INFO_LENGTH_MISMATCH
-        && nReturnBytes > 0)
-    {
+        if (RegistryObject == NULL)
+            goto Exit;
+
+        Status = ObQueryNameString(RegistryObject,
+            NULL,
+            0,
+            &nReturnBytes);
+        if (Status != STATUS_INFO_LENGTH_MISMATCH
+            || nReturnBytes <= 0)
+            goto Exit;
+
         RegistryPath = ExAllocatePool2(POOL_FLAG_PAGED, nReturnBytes + sizeof(WCHAR), 'reg');
         if (RegistryPath == NULL)
-        {
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-        }
-        else
-        {
-            Status = ObQueryNameString(RegistryObject,
-                RegistryPath,
-                nReturnBytes,
-                &nReturnBytes);
+            goto Exit;
 
-            if (NT_SUCCESS(Status))
+        Status = ObQueryNameString(RegistryObject,
+            RegistryPath,
+            nReturnBytes,
+            &nReturnBytes);
+
+        if (NT_SUCCESS(Status))
+        {
+            //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+            //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
+
+            pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
+            if (pRegData == NULL)
+                goto Exit;
+            else
             {
-                //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
-                //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
-                
-                PREGDATA2 pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
-                if (pRegData == NULL)
+                pRegData->NotifyClass = NotifyClass;
+                pRegData->PID = PsGetCurrentProcessId();
+                pRegData->RegistryFullPath = NULL;
+                pRegData->SystemTick = UTCTime.QuadPart;
+
+                len = 2;
+
+                if (RegistryPath->Name.Buffer != NULL)
+                    len += wcslen(RegistryPath->Name.Buffer);
+                if (RegistryName != NULL)
+                    len += wcslen(RegistryName);
+                len *= sizeof(WCHAR);
+
+                if (RegistryPath->Name.Buffer != NULL || RegistryName != NULL)
                 {
-                    DbgPrint("RegFilter,ExAllocatePool2 pRegData insufficient memory\n");
-                }
-                else
-                {
-                    pRegData->NotifyClass = NotifyClass;
-                    //pRegData->PID = PsGetCurrentProcessId();
-                    pRegData->PID = 0;
-                    pRegData->RegistryFullPath = NULL;
-                    pRegData->SystemTick = UTCTime.QuadPart;
-
-                    len = 2;
-
-                    if (RegistryPath->Name.Buffer != NULL)
-                        len += wcslen(RegistryPath->Name.Buffer);
-                    if (RegistryName.Buffer != NULL)
-                        len += wcslen(RegistryName.Buffer);
-                    len *= sizeof(WCHAR);
-
-                    if (RegistryPath->Name.Buffer != NULL || RegistryName.Buffer != NULL)
+                    pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
+                    if (pRegData->RegistryFullPath == NULL)
+                        goto Exit;
+                    else
                     {
-                        pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
-                        if (pRegData->RegistryFullPath == NULL)
-                        {
-                            DbgPrint("RegFilter,ExAllocatePool2 pRegData insufficient memory\n");
-                            ExFreePool(pRegData);
-                        }
-                        else
-                        {
-                            if (RegistryPath->Name.Buffer != NULL)
-                                wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
-                            wcscat(pRegData->RegistryFullPath, L"\\");
-                            if(RegistryName.Buffer != NULL)
-                                wcscat(pRegData->RegistryFullPath, RegistryName.Buffer);
-                        }
+                        if (RegistryPath->Name.Buffer != NULL)
+                            wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
+                        wcscat(pRegData->RegistryFullPath, L"\\");
+                        if (RegistryName != NULL)
+                            wcscat(pRegData->RegistryFullPath, RegistryName);
                     }
-
-                    if(pRegData != NULL)
-                        CreateData(pRegData, 2);
-
-                    //ExFreePool(pRegData->RegistryFullPath);
-                    //ExFreePool(pRegData);
                 }
-            }
 
-            ExFreePool(RegistryPath);
+                if (pRegData != NULL)
+                    CreateData(pRegData, 2);
+            }
         }
     }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        Status = GetExceptionCode();
+    }
+
+Exit:
     if (!NT_SUCCESS(Status))
     {
-        DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-            "ObQueryNameString fail : 0x%x\n", Status);
+        if(Status != STATUS_INVALID_PARAMETER)
+            DbgPrint("ObQueryNameString fail : 0x%x\n", Status);
+
+        if (pRegData != NULL)
+        {
+            if (pRegData->RegistryFullPath != NULL) ExFreePool(pRegData->RegistryFullPath);
+            ExFreePool(pRegData);
+        }
     }
 
-    return;
+    if (NotifyClassString != NULL) ExFreePool(NotifyClassString);
+    if (RegistryPath != NULL) ExFreePool(RegistryPath);
 }
 
 NTSTATUS
