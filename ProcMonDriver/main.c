@@ -31,7 +31,7 @@ DRIVER_UNLOAD   TdDeviceUnload;
 #pragma alloc_text(PAGE, POPDataThread)
 #pragma alloc_text(PAGE, DeviceControl)
 #pragma alloc_text(PAGE, CallbackMonitor)
-#pragma alloc_text(PAGE, FsFilterDispatchPassThrough)
+#pragma alloc_text(PAGE, FsFilterDispatchCreate)
 #pragma alloc_text(PAGE, CBTdPreOperationCallback)
 #endif
 
@@ -181,8 +181,6 @@ DeviceControl(
     inBufLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
     outBufLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
-    DbgPrint("ioctl\n");
-
     if (!inBufLength || !outBufLength)
     {
         ntStatus = STATUS_INVALID_PARAMETER;
@@ -274,22 +272,6 @@ DeviceControl(
             }
             break;
         case 1:
-            if (g_bRegCallBack)
-            {
-                Status = RegFilterUnload(g_pDriverObject);
-                if (!NT_SUCCESS(Status))
-                {
-                    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-                        "RegFilterUnload fail : 0x%x\n", Status);
-                }
-                else
-                {
-                    g_bRegCallBack = FALSE;
-                    DbgPrint("Registry Callback Remove\n");
-                }
-            }
-            break;
-        case 2:
             if (g_bFsCallBack)
             {
                 Status = FsFilterUnload(g_pDriverObject);
@@ -302,6 +284,22 @@ DeviceControl(
                 {
                     g_bFsCallBack = FALSE;
                     DbgPrint("File Callback Remove\n");
+                }
+            }
+            break;
+        case 2:
+            if (g_bRegCallBack)
+            {
+                Status = RegFilterUnload(g_pDriverObject);
+                if (!NT_SUCCESS(Status))
+                {
+                    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+                        "RegFilterUnload fail : 0x%x\n", Status);
+                }
+                else
+                {
+                    g_bRegCallBack = FALSE;
+                    DbgPrint("Registry Callback Remove\n");
                 }
             }
             break;

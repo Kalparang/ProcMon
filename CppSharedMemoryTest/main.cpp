@@ -77,11 +77,11 @@ typedef struct _REGDATA
 #define BUF_SIZE sizeof(REGDATA)
 #define IOCTL_SIZE sizeof(ioCallbackControl)
 
-char OutputBuffer[IOCTL_SIZE];
-char InputBuffer[IOCTL_SIZE];
-
 void StartDriverFunc(int num)
 {
+    char OutputBuffer[IOCTL_SIZE];
+    char InputBuffer[IOCTL_SIZE];
+
     HANDLE hMapFile;
     PVOID pBuf = NULL;
     HANDLE hDevice;
@@ -205,20 +205,21 @@ void StartDriverFunc(int num)
     {
         WaitForSingleObject(UserEvent, INFINITE);
 
-        //switch (num)
-        //{
+        switch (num)
+        {
         //case 0:
         //    printf("OB\n");
         //    break;
         //case 1:
-        //    printf("FS\n");
+        //    //printf("FS\n");
+        //    _tprintf(_T("%s\n"), ((PFSDATA)pBuf)->FileName);
         //    break;
         //case 2:
         //    printf("REG\n");
         //    break;
-        //default:
-        //    break;
-        //}
+        default:
+            break;
+        }
 
         SetEvent(KernelEvent);
     }
@@ -228,16 +229,70 @@ void StartDriverFunc(int num)
     CloseHandle(hMapFile);
 }
 
+void DriverExitFunc(int num)
+{
+    HANDLE hDevice;
+    DWORD errNum = 0;
+    PioCallbackControl pIoControl = NULL;
+    char OutputBuffer[IOCTL_SIZE];
+    char InputBuffer[IOCTL_SIZE];
+    BOOL bRc;
+    ULONG bytesReturned;
+
+    if ((hDevice = CreateFile(L"\\\\.\\ProcMonDevice",
+        GENERIC_READ | GENERIC_WRITE,
+        0,
+        NULL,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL)) == INVALID_HANDLE_VALUE) {
+
+        errNum = GetLastError();
+
+        if (errNum != ERROR_FILE_NOT_FOUND) {
+
+            printf("CreateFile failed : %d\n", errNum);
+
+            return;
+        }
+    }
+
+    pIoControl = (PioCallbackControl)InputBuffer;
+
+    pIoControl->Type = num;
+
+    bRc = DeviceIoControl(
+        hDevice,
+        IOCTL_CALLBACK_STOP,
+        &InputBuffer,
+        sizeof(ioCallbackControl),
+        &OutputBuffer,
+        sizeof(ioCallbackControl),
+        &bytesReturned,
+        NULL
+    );
+    if (!bRc)
+    {
+        printf("Error in DeviceIoControl : %d", GetLastError());
+        return;
+    }
+}
+
 int _tmain()
 {
-    std::thread t1(StartDriverFunc, 0);
-    std::thread t3(StartDriverFunc, 2);
-    Sleep(1000);
+    //std::thread t3(StartDriverFunc, 2);
     std::thread t2(StartDriverFunc, 1);
+    Sleep(1000);
+    std::thread t1(StartDriverFunc, 0);
 
-    t1.join();
-    t2.join();
-    t3.join();
+    _getch();
+
+    DriverExitFunc(0);
+    _getch();
+    DriverExitFunc(2);
+    _getch();
+    //DriverExitFunc(1);
+
 
     return 0;
 }

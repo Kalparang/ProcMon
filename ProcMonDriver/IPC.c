@@ -22,8 +22,9 @@ static PLISTDATA g_pRegList[2];
 
 extern PDRIVER_OBJECT g_pDriverObject;
 extern BOOLEAN g_bExit;
-
-static unsigned long long Num = 0;
+extern BOOLEAN g_bObCallBack;
+extern BOOLEAN g_bFsCallBack;
+extern BOOLEAN g_bRegCallBack;
 
 VOID
 POPDataThread(
@@ -157,12 +158,15 @@ IPC_Init(
 	{
 	case 0:
 		KeInitializeGuardedMutex(&ObMutex);
+		g_bObCallBack = TRUE;
 		break;
 	case 1:
 		KeInitializeGuardedMutex(&FsMutex);
+		g_bFsCallBack = TRUE;
 		break;
 	case 2:
 		KeInitializeGuardedMutex(&RegMutex);
+		g_bRegCallBack = TRUE;
 		break;
 	default:
 		DbgPrint("IPC_Init Unknown Type : %ld\n", Type);
@@ -202,6 +206,7 @@ POPDataThread(
 	PLISTDATA* pTargetList = NULL;
 	LARGE_INTEGER interval;
 	PVOID tempData = NULL;
+	PBOOLEAN pTargetExit = NULL;
 
 	interval.QuadPart = (1 * -10 * 1000 * 1000);
 
@@ -227,14 +232,17 @@ POPDataThread(
 	case 0:
 		pTargetMutex = &ObMutex;
 		pTargetList = g_pObList;
+		pTargetExit = &g_bObCallBack;
 		break;
 	case 1:
 		pTargetMutex = &FsMutex;
 		pTargetList = g_pFsList;
+		pTargetExit = &g_bFsCallBack;
 		break;
 	case 2:
 		pTargetMutex = &RegMutex;
 		pTargetList = g_pRegList;
+		pTargetExit = &g_bRegCallBack;
 		break;
 	default:
 		DbgPrint("IPC,POPDataThread Unknown Type : %ld\n", Type);
@@ -242,7 +250,7 @@ POPDataThread(
 		break;
 	}
 
-	while (1)
+	while (*pTargetExit)
 	{
 		KeAcquireGuardedMutex(pTargetMutex);
 
@@ -332,6 +340,32 @@ POPDataThread(
 
 	ZwUnmapViewOfSection(NtCurrentProcess(), hSharedSection);
 	ZwClose(hSection);
+
+	KeAcquireGuardedMutex(pTargetMutex);
+
+	while (pTargetList[0] != NULL)
+	{
+		PLISTDATA pCleanTarget = pTargetList[0];
+		pTargetList[0] = pTargetList[0]->NextData;
+		if (pCleanTarget->Data != NULL)
+		{
+			switch (Type)
+			{
+			case 1:
+				if (((PFSDATA2)pCleanTarget->Data)->FileName != NULL) ExFreePool(((PFSDATA2)pCleanTarget->Data)->FileName);
+				break;
+			case 2:
+				if (((PREGDATA2)pCleanTarget->Data)->RegistryFullPath != NULL) ExFreePool(((PREGDATA2)pCleanTarget->Data)->RegistryFullPath);
+			default:
+				break;
+			}
+			ExFreePool(pCleanTarget->Data);
+		}
+	}
+
+	KeReleaseGuardedMutex(pTargetMutex);
+
+	DbgPrint("%d POPThread Exit\n", Type);
 }
 
 VOID
@@ -345,7 +379,8 @@ DataInsertThread(
 	PVOID pData = NULL;
 	PLISTDATA* pTargetList = NULL;
 	PKGUARDED_MUTEX pTargetMutex = NULL;
-	
+	PBOOLEAN pTargetExit = NULL;
+
 	pData = pComData->Data;
 	Type = pComData->Type;
 	ExFreePool(pComData);
@@ -355,23 +390,38 @@ DataInsertThread(
 	case 0:
 		pTargetList = g_pObList;
 		pTargetMutex = &ObMutex;
+		pTargetExit = &g_bObCallBack;
 		break;
 	case 1:
 		pTargetList = g_pFsList;
 		pTargetMutex = &FsMutex;
+		pTargetExit = &g_bFsCallBack;
 		break;
 	case 2:
 		pTargetList = g_pRegList;
 		pTargetMutex = &RegMutex;
+		pTargetExit = &g_bRegCallBack;
 		break;
 	default:
-		DbgPrint("DataInsertThread Unknown Type : %ld\n", Type);
-		ExFreePool(pData);
-		return;
+		ntStatus = STATUS_INVALID_PARAMETER;
+		goto Exit;
 		break;
 	}
 
+	if (!*pTargetExit)
+	{
+		pTargetMutex = NULL;
+		ntStatus = STATUS_THREAD_IS_TERMINATING;
+		goto Exit;
+	}
+
 	KeAcquireGuardedMutex(pTargetMutex);
+
+	if (!*pTargetExit)
+	{
+		ntStatus = STATUS_THREAD_IS_TERMINATING;
+		goto Exit;
+	}
 
 	if (pTargetList[1] == NULL)
 	{
@@ -397,12 +447,10 @@ DataInsertThread(
 Exit:
 	if (!NT_SUCCESS(ntStatus))
 	{
-		DbgPrint("DataInsertThread Insuffcient memory\n");
+		DbgPrint("IPC, DataInsertThread fail : 0x%x\n", ntStatus);
 
 		switch (Type)
 		{
-		case 0:
-			break;
 		case 1:
 			if (pData != NULL)
 				if (((PFSDATA2)pData)->FileName != NULL)
@@ -419,7 +467,7 @@ Exit:
 			ExFreePool(pData);
 	}
 
-	KeReleaseGuardedMutex(pTargetMutex);
+	if(pTargetMutex != NULL) KeReleaseGuardedMutex(pTargetMutex);
 }
 
 /// <summary>
