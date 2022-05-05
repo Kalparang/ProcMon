@@ -53,6 +53,11 @@ FsFilterInit(
         DriverObject->MajorFunction[i] = FsFilterDispatchPassThrough;
     }
 
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = FsFilterDispatchCreate;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = FsFilterDispatchCreate;
+    DriverObject->MajorFunction[IRP_MJ_WRITE] = FsFilterDispatchCreate;
+    DriverObject->MajorFunction[IRP_MJ_READ] = FsFilterDispatchCreate;
+
     //
     // Set fast-io dispatch table.
     //
