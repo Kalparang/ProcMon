@@ -45,22 +45,37 @@
 // in the sample code to be unique for your own use.
 //
 
-#define NT_DEVICE_NAME L"\\Device\\ProcMonDriver"
-#define DOS_DEVICE_NAME L"\\DosDevices\\ProcMonDevice"
+UNICODE_STRING NT_DEVICE_NAME;
+UNICODE_STRING DOS_DEVICE_NAME;
 
-#define OB_DRIVER_NAME             L"ProcMonOB"
-#define OB_DRIVER_NAME_WITH_EXT    L"ProcMonOB.sys"
+//UNICODE_STRING OB_DRIVER_NAME;
+//UNICODE_STRING OB_DRIVER_NAME_WITH_EXT;
 
-#define OB_DEVICE_NAME          L"\\Device\\ProcMonOB"
-#define OB_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonobc"
+UNICODE_STRING OB_DEVICE_NAME;
+UNICODE_STRING OB_DOS_DEVICES_LINK_NAME;
 
-#define FS_DEVICE_NAME          L"\\Device\\ProcMonFS"
-#define FS_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonfsy"
+UNICODE_STRING FS_DEVICE_NAME;
+UNICODE_STRING FS_DOS_DEVICES_LINK_NAME;
+
+UNICODE_STRING REG_DEVICE_NAME;
+UNICODE_STRING REG_DOS_DEVICES_LINK_NAME;
+
+//#define NT_DEVICE_NAME L"\\Device\\ProcMonDriver"
+//#define DOS_DEVICE_NAME L"\\DosDevices\\ProcMonDevice"
+//
+//#define OB_DRIVER_NAME             L"ProcMonOB"
+//#define OB_DRIVER_NAME_WITH_EXT    L"ProcMonOB.sys"
+//
+//#define OB_DEVICE_NAME          L"\\Device\\ProcMonOB"
+//#define OB_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonobc"
+//
+//#define FS_DEVICE_NAME          L"\\Device\\ProcMonFS"
+//#define FS_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonfsy"
 
 // RegFilter
 
-#define REG_DEVICE_NAME          L"\\Device\\ProcMonRF"
-#define REG_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonreg"
+//#define REG_DEVICE_NAME          L"\\Device\\ProcMonRF"
+//#define REG_DOS_DEVICES_LINK_NAME   L"\\DosDevices\\ProcMonreg"
 
 //
 // SDDL string used when creating the device. This string

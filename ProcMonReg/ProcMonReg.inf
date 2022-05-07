@@ -1,0 +1,53 @@
+;
+; ProcMonReg.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%ManufacturerName%
+DriverVer=
+CatalogFile=ProcMonReg.cat
+PnpLockDown=1
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[DefaultInstall]
+OptionDesc          = %ServiceDescription%
+CopyFiles           = ProcMonReg.DriverFiles
+
+[DefaultInstall.Services]
+AddService          = %ServiceName%,,ProcMonReg.Service
+
+[DefaultUninstall]
+DelFiles            = ProcMonReg.DriverFiles
+
+[DefaultUninstall.Services]
+DelService = ProcMonReg,0x200
+
+[ProcMonReg.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys        ;%windir%\system32\drivers\
+ServiceType      = 1                          ;SERVICE_KERNEL
+StartType        = 3                            ;SERVICE_DEMAND_START
+ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
+
+[ProcMonReg.DriverFiles]
+%DriverName%.sys
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+ProcMonReg.sys = 1,,
+
+[Strings]
+ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+ClassName=""
+DiskName="ProcMonReg Source Disk"
+ServiceDescription="ProcMon driver"
+ServiceName="ProcMonReg"
+DriverName="ProcMonReg"

@@ -3,6 +3,7 @@
 #include "FSFilter.h"
 #include "RegFilter.h"
 #include "IPC.h"
+#include ".\..\DriverCommon.h"
 
 //////////////////////////////////////////////////////////////////////////
 // Global data
@@ -17,30 +18,47 @@ BOOLEAN g_bRegCallBack = FALSE;
 //
 // Function declarations
 //
-DRIVER_INITIALIZE  DriverEntry;
+//DRIVER_INITIALIZE  ProcMonDriverEntry;
+//DRIVER_UNLOAD   ProcMonDeviceUnload;
 
-_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH TdDeviceCreate;
-_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH TdDeviceClose;
-_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH DeviceControl;
+VOID
+ProcMonDeviceUnload(
+    _In_ PDRIVER_OBJECT DriverObject
+);
 
-DRIVER_UNLOAD   TdDeviceUnload;
+NTSTATUS
+ProcMonDispatchPassthrough(
+    IN PDEVICE_OBJECT  DeviceObject,
+    IN PIRP  Irp
+);
 
-#ifdef ALLOC_PRAGMA
-#pragma alloc_text(PAGE, IPC_Init)
-#pragma alloc_text(PAGE, CreateData)
-#pragma alloc_text(PAGE, POPDataThread)
-#pragma alloc_text(PAGE, DeviceControl)
-#pragma alloc_text(PAGE, CallbackMonitor)
-#pragma alloc_text(PAGE, FsFilterDispatchCreate)
-#pragma alloc_text(PAGE, CBTdPreOperationCallback)
-#endif
+NTSTATUS
+ProcMonDeviceControl(
+    PDEVICE_OBJECT DeviceObject,
+    PIRP Irp
+);
+
+//_Dispatch_type_(IRP_MJ_CREATE) DRIVER_DISPATCH ProcMonDeviceCreate;
+//_Dispatch_type_(IRP_MJ_CLOSE) DRIVER_DISPATCH ProcMonDeviceClose;
+//_Dispatch_type_(IRP_MJ_DEVICE_CONTROL) DRIVER_DISPATCH ProcMonDeviceControl;
+
+
+//#ifdef ALLOC_PRAGMA
+//#pragma alloc_text(PAGE, IPC_Init)
+//#pragma alloc_text(PAGE, CreateData)
+//#pragma alloc_text(PAGE, POPDataThread)
+//#pragma alloc_text(PAGE, DeviceControl)
+//#pragma alloc_text(PAGE, CallbackMonitor)
+//#pragma alloc_text(PAGE, FsFilterDispatchCreate)
+//#pragma alloc_text(PAGE, CBTdPreOperationCallback)
+//#endif
 
 //
 // DriverEntry
 //
 
 NTSTATUS
-DriverEntry(
+ProcMonDriverEntry(
     _In_ PDRIVER_OBJECT  DriverObject,
     _In_ PUNICODE_STRING RegistryPath
 )
@@ -48,7 +66,6 @@ DriverEntry(
     UNREFERENCED_PARAMETER(RegistryPath);
 
     NTSTATUS Status = STATUS_SUCCESS;
-
     DbgPrint("ProcMon DriverEntry\n");
 
     g_pDriverObject = DriverObject;
@@ -59,7 +76,7 @@ DriverEntry(
     //
     // Create our device object.
     //
-    RtlInitUnicodeString(&NtDeviceName, NT_DEVICE_NAME);
+    RtlInitUnicodeString(&NtDeviceName, NT_DEVICE_NAME.Buffer);
     Status = IoCreateDevice(
         DriverObject,                 // pointer to driver object
         0,                            // device extension size
@@ -77,17 +94,17 @@ DriverEntry(
     //
     // Create a link in the Win32 namespace.
     //
-    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICE_NAME);
+    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICE_NAME.Buffer);
     Status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
     if (!NT_SUCCESS(Status)) {
         IoDeleteDevice(g_pDeviceObject);
         return Status;
     }
 
-    DriverObject->DriverUnload = TdDeviceUnload;
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = TdDeviceCreate;
-    DriverObject->MajorFunction[IRP_MJ_CLOSE] = TdDeviceClose;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceControl;
+    DriverObject->DriverUnload = ProcMonDeviceUnload;
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = ProcMonDispatchPassthrough;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = ProcMonDispatchPassthrough;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = ProcMonDeviceControl;
 
     DbgPrint("ProcMon DriverEntry Success\n");
 
@@ -107,7 +124,7 @@ DriverEntry(
 //
 
 VOID
-TdDeviceUnload(
+ProcMonDeviceUnload(
     _In_ PDRIVER_OBJECT DriverObject
 )
 {
@@ -116,7 +133,7 @@ TdDeviceUnload(
     NTSTATUS Status = STATUS_SUCCESS;
     UNICODE_STRING  DosDevicesLinkName;
 
-    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICE_NAME);
+    RtlInitUnicodeString(&DosDevicesLinkName, DOS_DEVICE_NAME.Buffer);
     IoDeleteSymbolicLink(&DosDevicesLinkName);
 
     IoDeleteDevice(g_pDeviceObject);
@@ -160,7 +177,7 @@ TdDeviceUnload(
 }
 
 NTSTATUS
-DeviceControl(
+ProcMonDeviceControl(
     PDEVICE_OBJECT DeviceObject,
     PIRP Irp
 )
@@ -196,61 +213,59 @@ DeviceControl(
     pioControl = Irp->AssociatedIrp.SystemBuffer;
     outBuf = Irp->AssociatedIrp.SystemBuffer;
 
-    if (!NT_SUCCESS(Status))
-    {
-        DbgPrint("main, DeviceControl, IPC_Init Fail : 0x%x\n", Status);
-        goto End;
-    }
-
     switch (irpSp->Parameters.DeviceIoControl.IoControlCode)
     {
     case IOCTL_CALLBACK_START:
         Status = IPC_Init(pioControl->Type, pioControl->CallbackPrefix);
-        switch (pioControl->Type)
+        if (!NT_SUCCESS(Status))
         {
-        case 0:
+            DbgPrint("main, DeviceControl, IPC_Init Fail : 0x%x\n", Status);
+            goto End;
+        }
+		switch (pioControl->Type)
+		{
+		case 0:
             Status = TdInitOBCallback();
-            if (!NT_SUCCESS(Status))
-            {
-                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-                    "TdInitOBCallback fail : 0x%x\n", Status);
-            }
+			if (!NT_SUCCESS(Status))
+			{
+				DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+					"TdInitOBCallback fail : 0x%x\n", Status);
+			}
             else
             {
                 g_bObCallBack = TRUE;
                 DbgPrint("OB Callback Success\n");
             }
-            break;
-        case 1:
-            Status = FsFilterInit(g_pDriverObject);
-            if (!NT_SUCCESS(Status))
-            {
-                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-                    "FsFilterInit fail : 0x%x\n", Status);
-            }
-            else
-            {
-                g_bFsCallBack = TRUE;
-                DbgPrint("FileSystem Filter Success\n");
-            }
-
-            break;
-        case 2:
-            Status = RegFilterInit(g_pDriverObject);
-            if (!NT_SUCCESS(Status))
-            {
-                DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
-                    "RegFilterInit fail : 0x%x\n", Status);
-            }
-            else
-            {
-                g_bRegCallBack = TRUE;
-                DbgPrint("Registry Filter Success\n");
-            }
-            break;
-        default:
-            break;
-        }
+			break;
+		case 1:
+			Status = FsFilterInit(g_pDriverObject);
+			if (!NT_SUCCESS(Status))
+			{
+				DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+					"FsFilterInit fail : 0x%x\n", Status);
+			}
+			else
+			{
+				g_bFsCallBack = TRUE;
+				DbgPrint("FileSystem Filter Success\n");
+			}
+			break;
+		case 2:
+			Status = RegFilterInit(g_pDriverObject);
+			if (!NT_SUCCESS(Status))
+			{
+				DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+					"RegFilterInit fail : 0x%x\n", Status);
+			}
+			else
+			{
+				g_bRegCallBack = TRUE;
+				DbgPrint("Registry Filter Success\n");
+			}
+			break;
+		default:
+			break;
+		}
         break;
 
     case IOCTL_CALLBACK_STOP:
@@ -323,13 +338,12 @@ DeviceControl(
     //
     RtlCopyBytes(outBuf, &Status, sizeof(NTSTATUS));
 
+End:
     //
     // Assign the length of the data copied to IoStatus.Information
     // of the Irp and complete the Irp.
     //
     Irp->IoStatus.Information = sizeof(NTSTATUS);
-
-End:
 
     Irp->IoStatus.Status = ntStatus;
 
@@ -348,9 +362,8 @@ End:
 //     This function handles the 'create' irp.
 //
 
-
 NTSTATUS
-TdDeviceCreate(
+ProcMonDispatchPassthrough(
     IN PDEVICE_OBJECT  DeviceObject,
     IN PIRP  Irp
 )
@@ -364,52 +377,59 @@ TdDeviceCreate(
     return STATUS_SUCCESS;
 }
 
-//
-// Function:
-//
-//     TdDeviceClose
-//
-// Description:
-//
-//     This function handles the 'close' irp.
-//
 
-NTSTATUS
-TdDeviceClose(
-    IN PDEVICE_OBJECT  DeviceObject,
-    IN PIRP  Irp
+VOID
+SetDriverName(
+    PWCH NT_NAME,
+    PWCH DOS_NAME
 )
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    if (NT_NAME == NULL
+        || DOS_NAME == NULL)
+        return;
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
-    return STATUS_SUCCESS;
+    RtlInitUnicodeString(&NT_DEVICE_NAME, NT_NAME);
+    RtlInitUnicodeString(&DOS_DEVICE_NAME, DOS_NAME);
 }
 
-//
-// Function:
-//
-//     TdDeviceCleanup
-//
-// Description:
-//
-//     This function handles the 'cleanup' irp.
-//
-
-NTSTATUS
-TdDeviceCleanup(
-    IN PDEVICE_OBJECT  DeviceObject,
-    IN PIRP  Irp
+VOID
+SetOBName(
+    PWCH NT_NAME,
+    PWCH DOS_NAME
 )
 {
-    UNREFERENCED_PARAMETER(DeviceObject);
+    if (NT_NAME == NULL
+        || DOS_NAME == NULL)
+        return;
 
-    Irp->IoStatus.Status = STATUS_SUCCESS;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    RtlInitUnicodeString(&OB_DEVICE_NAME, NT_NAME);
+    RtlInitUnicodeString(&OB_DOS_DEVICES_LINK_NAME, DOS_NAME);
+}
 
-    return STATUS_SUCCESS;
+VOID
+SetFSName(
+    PWCH NT_NAME,
+    PWCH DOS_NAME
+)
+{
+    if (NT_NAME == NULL
+        || DOS_NAME == NULL)
+        return;
+
+    RtlInitUnicodeString(&FS_DEVICE_NAME, NT_NAME);
+    RtlInitUnicodeString(&FS_DOS_DEVICES_LINK_NAME, DOS_NAME);
+}
+
+VOID
+SetREGName(
+    PWCH NT_NAME,
+    PWCH DOS_NAME
+)
+{
+    if (NT_NAME == NULL
+        || DOS_NAME == NULL)
+        return;
+
+    RtlInitUnicodeString(&REG_DEVICE_NAME, NT_NAME);
+    RtlInitUnicodeString(&REG_DOS_DEVICES_LINK_NAME, DOS_NAME);
 }

@@ -1,0 +1,53 @@
+;
+; ProcMonFS.inf
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=System
+ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider=%ManufacturerName%
+DriverVer=
+CatalogFile=ProcMonFS.cat
+PnpLockDown=1
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[DefaultInstall]
+OptionDesc          = %ServiceDescription%
+CopyFiles           = ProcMonFS.DriverFiles
+
+[DefaultInstall.Services]
+AddService          = %ServiceName%,,ProcMonFS.Service
+
+[DefaultUninstall]
+DelFiles            = ProcMonFS.DriverFiles
+
+[DefaultUninstall.Services]
+DelService = ProcMonFS,0x200
+
+[ProcMonFS.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys        ;%windir%\system32\drivers\
+ServiceType      = 1                          ;SERVICE_KERNEL
+StartType        = 3                            ;SERVICE_DEMAND_START
+ErrorControl     = 1                            ;SERVICE_ERROR_NORMAL
+
+[ProcMonFS.DriverFiles]
+%DriverName%.sys
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+ProcMonFS.sys = 1,,
+
+[Strings]
+ManufacturerName="<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+ClassName=""
+DiskName="ProcMonFS Source Disk"
+ServiceDescription="ProcMon driver"
+ServiceName="ProcMonFS"
+DriverName="ProcMonFS"

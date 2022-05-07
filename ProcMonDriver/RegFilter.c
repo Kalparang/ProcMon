@@ -59,7 +59,7 @@ RegFilterInit(
     //
     // Create our device object.
     //
-    RtlInitUnicodeString(&NtDeviceName, REG_DEVICE_NAME);
+    RtlInitUnicodeString(&NtDeviceName, REG_DEVICE_NAME.Buffer);
     Status = IoCreateDevice(
         DriverObject,                 // pointer to driver object
         0,                            // device extension size
@@ -77,7 +77,7 @@ RegFilterInit(
     //
     // Create a link in the Win32 namespace.
     //
-    RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME);
+    RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME.Buffer);
     Status = IoCreateSymbolicLink(&DosDevicesLinkName, &NtDeviceName);
     if (!NT_SUCCESS(Status)) {
         RegFilterUnload(DriverObject);
@@ -125,7 +125,7 @@ RegFilterUnload(
 
     if (g_RegSymbolicLink)
     {
-        RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME);
+        RtlInitUnicodeString(&DosDevicesLinkName, REG_DOS_DEVICES_LINK_NAME.Buffer);
         IoDeleteSymbolicLink(&DosDevicesLinkName);
     }
 

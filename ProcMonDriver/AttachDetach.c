@@ -1,6 +1,7 @@
 #include "FSFilter.h"
 
 PDRIVER_OBJECT   g_FsDriverObject = NULL;
+extern BOOLEAN g_bFsCallBack;
 
 FAST_IO_DISPATCH g_fastIoDispatch =
 {
@@ -40,7 +41,7 @@ FsFilterInit(
 )
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    ULONG i;
+    ULONG i = 0;
 
     g_FsDriverObject = DriverObject;
 
@@ -70,6 +71,8 @@ FsFilterInit(
 
     Status = IoRegisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
 
+    DriverObject->DriverUnload = FsFilterUnload;
+
     return Status;
 }
 
@@ -85,6 +88,7 @@ FsFilterUnload(
     PDEVICE_OBJECT devList[DEVOBJ_LIST_SIZE];
 
     interval.QuadPart = (1 * DELAY_ONE_SECOND); //delay 5 seconds
+    g_bFsCallBack = FALSE;
 
     //
     //  Unregistered callback routine for file system changes.

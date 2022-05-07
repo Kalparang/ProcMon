@@ -178,13 +178,25 @@ IPC_Init(
 	pThreadData->Type = Type;
 	wcscpy(pThreadData->Prefix, Prefix);
 
-	IoCreateSystemThread(
-		g_pDriverObject,
-		&thread, THREAD_ALL_ACCESS,
-		NULL, NULL, NULL,
-		POPDataThread, pThreadData
-	);
-	ZwClose(thread);
+	if (Type == 1)
+	{
+		PsCreateSystemThread(
+			&thread, THREAD_ALL_ACCESS,
+			NULL, NULL, NULL,
+			POPDataThread, pThreadData
+		);
+		ZwClose(thread);
+	}
+	else
+	{
+		IoCreateSystemThread(
+			g_pDriverObject,
+			&thread, THREAD_ALL_ACCESS,
+			NULL, NULL, NULL,
+			POPDataThread, pThreadData
+		);
+		ZwClose(thread);
+	}
 
 	return ntStatus;
 }
@@ -194,9 +206,9 @@ POPDataThread(
 	PVOID ThreadContext
 )
 {
-	PAGED_CODE();
+	//PAGED_CODE();
 
-	NTSTATUS ntStatus;
+	NTSTATUS ntStatus = STATUS_OBJECT_NAME_NOT_FOUND;
 	pPOPThreadData pThreadData = ThreadContext;
 	LONG Type;
 	HANDLE hSection = NULL;
@@ -521,11 +533,24 @@ CreateData(
 	ComData->Data = pData;
 	ComData->Type = Type;
 
-	IoCreateSystemThread(
-		g_pDriverObject,
-		&thread, THREAD_ALL_ACCESS,
-		NULL, NULL, NULL,
-		DataInsertThread, ComData
-	);
-	ZwClose(thread);
+	if (Type == 1)
+	{
+		PsCreateSystemThread(
+			&thread, THREAD_ALL_ACCESS,
+			NULL, NULL, NULL,
+			DataInsertThread, ComData
+		);
+		ZwClose(thread);
+	}
+	else
+	{
+		IoCreateSystemThread(
+			g_pDriverObject,
+			&thread, THREAD_ALL_ACCESS,
+			NULL, NULL, NULL,
+			DataInsertThread, ComData
+		);
+		ZwClose(thread);
+	}
 }
+

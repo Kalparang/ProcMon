@@ -90,6 +90,7 @@ void StartDriverFunc(int num)
     WCHAR SharedMemoryName[1024] = { 0, };
     WCHAR KernelEventName[1024] = { 0, };
     WCHAR UserEventName[1024] = { 0, };
+    WCHAR DeviceName[1024] = { 0, };
     HANDLE KernelEvent;
     HANDLE UserEvent;
     DWORD errNum = 0;
@@ -102,14 +103,17 @@ void StartDriverFunc(int num)
     case 0:
         ShareSize = sizeof(OBDATA);
         wcscpy_s(Prefix, L"obprefix");
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceOB");
         break;
     case 1:
         ShareSize = sizeof(FSDATA);
         wcscpy_s(Prefix, L"fsprefix");
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceFS");
         break;
     case 2:
         ShareSize = sizeof(REGDATA);
         wcscpy_s(Prefix, L"regprefix");
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceREG");
         break;
     default:
         break;
@@ -160,43 +164,46 @@ void StartDriverFunc(int num)
         return;
     }
 
-    if ((hDevice = CreateFile(L"\\\\.\\ProcMonDevice",
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        NULL,
-        CREATE_ALWAYS,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL)) == INVALID_HANDLE_VALUE) {
+    if (num != 1)
+    {
+        if ((hDevice = CreateFile(DeviceName,
+            GENERIC_READ | GENERIC_WRITE,
+            0,
+            NULL,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL)) == INVALID_HANDLE_VALUE) {
 
-        errNum = GetLastError();
+            errNum = GetLastError();
 
-        if (errNum != ERROR_FILE_NOT_FOUND) {
+            if (errNum != ERROR_FILE_NOT_FOUND) {
 
-            printf("CreateFile failed : %d\n", errNum);
+                printf("CreateFile failed : %d\n", errNum);
 
+                return;
+            }
+        }
+
+        pIoControl = (PioCallbackControl)InputBuffer;
+
+        pIoControl->Type = num;
+        wcscpy_s(pIoControl->CallbackPrefix, 32, Prefix);
+
+        bRc = DeviceIoControl(
+            hDevice,
+            IOCTL_CALLBACK_START,
+            &InputBuffer,
+            sizeof(ioCallbackControl),
+            &OutputBuffer,
+            sizeof(ioCallbackControl),
+            &bytesReturned,
+            NULL
+        );
+        if (!bRc)
+        {
+            printf("Error in DeviceIoControl : %d", GetLastError());
             return;
         }
-    }
-
-    pIoControl = (PioCallbackControl)InputBuffer;
-
-    pIoControl->Type = num;
-    wcscpy_s(pIoControl->CallbackPrefix, 32, Prefix);
-
-    bRc = DeviceIoControl(
-        hDevice,
-        IOCTL_CALLBACK_START,
-        &InputBuffer,
-        sizeof(ioCallbackControl),
-        &OutputBuffer,
-        sizeof(ioCallbackControl),
-        &bytesReturned,
-        NULL
-    );
-    if (!bRc)
-    {
-        printf("Error in DeviceIoControl : %d", GetLastError());
-        return;
     }
 
     SetEvent(KernelEvent);
@@ -210,10 +217,10 @@ void StartDriverFunc(int num)
         //case 0:
         //    printf("OB\n");
         //    break;
-        //case 1:
-        //    //printf("FS\n");
-        //    _tprintf(_T("%s\n"), ((PFSDATA)pBuf)->FileName);
-        //    break;
+        case 1:
+            //printf("FS\n");
+            _tprintf(_T("%s\n"), ((PFSDATA)pBuf)->FileName);
+            break;
         //case 2:
         //    printf("REG\n");
         //    break;
@@ -236,10 +243,26 @@ void DriverExitFunc(int num)
     PioCallbackControl pIoControl = NULL;
     char OutputBuffer[IOCTL_SIZE];
     char InputBuffer[IOCTL_SIZE];
+    WCHAR DeviceName[1024];
     BOOL bRc;
     ULONG bytesReturned;
 
-    if ((hDevice = CreateFile(L"\\\\.\\ProcMonDevice",
+    switch (num)
+    {
+    case 0:
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceOB");
+        break;
+    case 1:
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceFS");
+        break;
+    case 2:
+        wcscpy_s(DeviceName, L"\\\\.\\ProcMonDeviceREG");
+        break;
+    default:
+        break;
+    }
+
+    if ((hDevice = CreateFile(DeviceName,
         GENERIC_READ | GENERIC_WRITE,
         0,
         NULL,
@@ -276,22 +299,20 @@ void DriverExitFunc(int num)
         printf("Error in DeviceIoControl : %d", GetLastError());
         return;
     }
+
+    CloseHandle(hDevice);
 }
 
 int _tmain()
 {
-    //std::thread t3(StartDriverFunc, 2);
-    std::thread t2(StartDriverFunc, 1);
-    Sleep(1000);
+    std::thread t3(StartDriverFunc, 2);
     std::thread t1(StartDriverFunc, 0);
+    std::thread t2(StartDriverFunc, 1);
 
     _getch();
-
     DriverExitFunc(0);
-    _getch();
     DriverExitFunc(2);
-    _getch();
-    //DriverExitFunc(1);
+    DriverExitFunc(1);
 
 
     return 0;

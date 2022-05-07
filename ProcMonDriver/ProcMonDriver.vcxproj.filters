@@ -33,9 +33,6 @@
     <ClCompile Include="OBCallback.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AttachDetach.c">
-      <Filter>Source Files\FSFilter</Filter>
-    </ClCompile>
     <ClCompile Include="FastIO.c">
       <Filter>Source Files\FSFilter</Filter>
     </ClCompile>
@@ -53,6 +50,9 @@
     </ClCompile>
     <ClCompile Include="IPC.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="AttachDetach.c">
+      <Filter>Source Files\FSFilter</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -75,6 +75,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="IPC.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DriverCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
