@@ -42,6 +42,8 @@ BOOLEAN g_RegSymbolicLink = FALSE;
 ULONG g_MajorVersion;
 ULONG g_MinorVersion;
 
+extern BOOLEAN g_bRegCallBack;
+
 LPCWSTR
 GetNotifyClassString(
     _In_ REG_NOTIFY_CLASS NotifyClass
@@ -117,6 +119,8 @@ RegFilterUnload(
 
     NTSTATUS Status = STATUS_SUCCESS;
     UNICODE_STRING  DosDevicesLinkName;
+
+    g_bRegCallBack = FALSE;
 
     if (g_RegDeviceObject != NULL)
     {
@@ -200,7 +204,8 @@ Return Value:
         return STATUS_SUCCESS;
     }
 
-    CallbackMonitor(NotifyClass, Argument2);
+    if(g_bRegCallBack)
+        CallbackMonitor(NotifyClass, Argument2);
 
     return STATUS_SUCCESS;
 }
@@ -524,7 +529,7 @@ Return Value:
     POBJECT_NAME_INFORMATION RegistryPath = NULL;
     ULONG nReturnBytes;
     PVOID RegistryObject = NULL;
-    PWCH RegistryName = NULL;
+    PUNICODE_STRING RegistryName = NULL;
     PWCH NotifyClassString = NULL;
     LARGE_INTEGER UTCTime;
     size_t len = 0;
@@ -638,20 +643,14 @@ Return Value:
             RegistryObject = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject;
 
         if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
-            if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer != NULL)
-            {
-                RegistryName = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer;
-            }
+            RegistryName = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName;
         break;
     case RegNtPreOpenKeyEx:
 		if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject != NULL)
 			RegistryObject = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject;
 
-		if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
-			if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer != NULL)
-			{
-				RegistryName = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName->Buffer;
-			}
+        if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
+            RegistryName = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName;
         break;
     //case RegNtPreFlushKey:
     //case RegNtPreLoadKey:
@@ -692,75 +691,66 @@ Return Value:
         break;
     }
 
-    __try
-    {
-        if (RegistryObject == NULL)
-            goto Exit;
+	if (RegistryObject == NULL
+        || RegistryName == NULL)
+		goto Exit;
 
-        Status = ObQueryNameString(RegistryObject,
-            NULL,
-            0,
-            &nReturnBytes);
-        if (Status != STATUS_INFO_LENGTH_MISMATCH
-            || nReturnBytes <= 0)
-            goto Exit;
+	Status = ObQueryNameString(RegistryObject,
+		NULL,
+		0,
+		&nReturnBytes);
+	if (Status != STATUS_INFO_LENGTH_MISMATCH
+		|| nReturnBytes <= 0)
+		goto Exit;
 
-        RegistryPath = ExAllocatePool2(POOL_FLAG_PAGED, nReturnBytes + sizeof(WCHAR), 'reg');
-        if (RegistryPath == NULL)
-            goto Exit;
+	RegistryPath = ExAllocatePool2(POOL_FLAG_PAGED, nReturnBytes + sizeof(WCHAR), 'reg');
+	if (RegistryPath == NULL)
+		goto Exit;
 
-        Status = ObQueryNameString(RegistryObject,
-            RegistryPath,
-            nReturnBytes,
-            &nReturnBytes);
+	Status = ObQueryNameString(RegistryObject,
+		RegistryPath,
+		nReturnBytes,
+		&nReturnBytes);
 
-        if (NT_SUCCESS(Status))
-        {
-            //DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
-            //    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
+	if (NT_SUCCESS(Status))
+	{
+		//DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
+		//    "RegFilterInfo : %wZ | %wZ\\%wZ\n", NotifyClassString, RegistryPath->Name, RegistryName);
 
-            pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
-            if (pRegData == NULL)
-                goto Exit;
-            else
-            {
-                pRegData->NotifyClass = NotifyClass;
-                pRegData->PID = PsGetCurrentProcessId();
-                pRegData->RegistryFullPath = NULL;
-                pRegData->SystemTick = UTCTime.QuadPart;
+		pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
+		if (pRegData == NULL)
+			goto Exit;
+		else
+		{
+			pRegData->NotifyClass = NotifyClass;
+			pRegData->PID = PsGetCurrentProcessId();
+			pRegData->RegistryFullPath = NULL;
+			pRegData->SystemTick = UTCTime.QuadPart;
 
-                len = 2;
+			len += 2;
+			len += RegistryPath->Name.Length;
+            len += RegistryName->Length;
+			len *= sizeof(WCHAR);
 
-                if (RegistryPath->Name.Buffer != NULL)
-                    len += wcslen(RegistryPath->Name.Buffer);
-                if (RegistryName != NULL)
-                    len += wcslen(RegistryName);
-                len *= sizeof(WCHAR);
+			if (RegistryPath->Name.Length > 0 || RegistryName->Length > 0)
+			{
+				pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
+				if (pRegData->RegistryFullPath == NULL)
+					goto Exit;
+				else
+				{
+					if (RegistryPath->Name.Length > 0)
+						wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
+					wcscat(pRegData->RegistryFullPath, L"\\");
+					if (RegistryName->Length > 0)
+						wcscat(pRegData->RegistryFullPath, RegistryName->Buffer);
+				}
+			}
 
-                if (RegistryPath->Name.Buffer != NULL || RegistryName != NULL)
-                {
-                    pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
-                    if (pRegData->RegistryFullPath == NULL)
-                        goto Exit;
-                    else
-                    {
-                        if (RegistryPath->Name.Buffer != NULL)
-                            wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
-                        wcscat(pRegData->RegistryFullPath, L"\\");
-                        if (RegistryName != NULL)
-                            wcscat(pRegData->RegistryFullPath, RegistryName);
-                    }
-                }
-
-                if (pRegData != NULL)
-                    CreateData(pRegData, 2);
-            }
-        }
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER)
-    {
-        Status = GetExceptionCode();
-    }
+			if (pRegData != NULL)
+				CreateData(pRegData, 2);
+		}
+	}
 
 Exit:
     if (!NT_SUCCESS(Status))
