@@ -1,8 +1,6 @@
-NTSTATUS
-ProcMonDriverEntry(
-    _In_ PDRIVER_OBJECT  DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-);
+#define OBPrefix L"obprefix"
+#define FSPrefix L"fsprefix"
+#define REGPrefix L"regprefix"
 
 VOID
 SetDriverName(

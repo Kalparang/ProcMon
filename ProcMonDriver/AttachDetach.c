@@ -71,8 +71,6 @@ FsFilterInit(
 
     Status = IoRegisterFsRegistrationChange(DriverObject, FsFilterNotificationCallback);
 
-    DriverObject->DriverUnload = FsFilterUnload;
-
     return Status;
 }
 

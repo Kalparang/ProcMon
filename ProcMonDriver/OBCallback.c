@@ -21,6 +21,8 @@ OB_OPERATION_REGISTRATION CBOperationRegistrations[2] = { { 0 }, { 0 } };
 UNICODE_STRING CBAltitude = { 0 };
 TD_CALLBACK_REGISTRATION CBCallbackRegistration = { 0 };
 
+extern BOOLEAN g_bObCallBack;
+
 //
 // TdDeleteProtectNameCallback
 //
@@ -246,17 +248,20 @@ CBTdPreOperationCallback(
     //    InitialDesiredAccess
     //);
 
-    obData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(OBDATA), 'ob');
-    if (obData == NULL)
-        goto Exit;
+    if (g_bObCallBack)
+    {
+        obData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(OBDATA), 'ob');
+        if (obData == NULL)
+            goto Exit;
 
-    obData->SystemTick = UTCTime.QuadPart;
-    obData->PID = PsGetCurrentProcessId();
-    obData->TargetPID = PsGetProcessId(PreInfo->Object);
-    obData->Operation = PreInfo->Operation;
-    obData->DesiredAccess = OriginalDesiredAccess;
+        obData->SystemTick = UTCTime.QuadPart;
+        obData->PID = PsGetCurrentProcessId();
+        obData->TargetPID = PsGetProcessId(PreInfo->Object);
+        obData->Operation = PreInfo->Operation;
+        obData->DesiredAccess = OriginalDesiredAccess;
 
-    CreateData(obData, 0);
+        CreateData(obData, 0);
+    }
 
 Exit:
 

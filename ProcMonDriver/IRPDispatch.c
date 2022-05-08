@@ -1,6 +1,8 @@
 #include "FSFilter.h"
 #include "IPC.h"
 
+extern BOOLEAN g_bFsCallBack;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // PassThrough IRP Handler
 
@@ -40,33 +42,37 @@ NTSTATUS FsFilterDispatchCreate(
 
             //DbgPrint("FSInfo : Control : %u | Flags : %u | MajFunc : %u | MinFunc : %u | %wZ\n",
             //    pStackLocation->Control, pStackLocation->Flags, pStackLocation->MajorFunction, pStackLocation->MinorFunction, pFileObject->FileName);
-
-            pFsData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(FSDATA2), 'fs');
-            if (pFsData != NULL)
+            if (g_bFsCallBack)
             {
-                pFsData->MajorFunction = pStackLocation->MajorFunction;
-                pFsData->PID = PsGetCurrentProcessId();
-                pFsData->SystemTick = UTCTime.QuadPart;
-                pFsData->FileName = NULL;
-
-                if (pFileObject->FileName.Buffer != NULL)
+                pFsData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(FSDATA2), 'fs');
+                if (pFsData != NULL)
                 {
-                    len = 1;
-                    len += wcslen(pFileObject->FileName.Buffer);
-                    len *= sizeof(WCHAR);
+                    pFsData->MajorFunction = pStackLocation->MajorFunction;
+                    pFsData->PID = PsGetCurrentProcessId();
+                    pFsData->SystemTick = UTCTime.QuadPart;
+                    pFsData->FileName = NULL;
 
-                    pFsData->FileName = ExAllocatePool2(POOL_FLAG_PAGED, len, 'fs');
-                    if (pFsData->FileName != NULL)
-                        wcscpy(pFsData->FileName, pFileObject->FileName.Buffer);
-                    else
-                        goto Exit;
+                    if (pFileObject->FileName.Buffer != NULL)
+                    {
+                        len = 1;
+                        len += wcslen(pFileObject->FileName.Buffer);
+                        len *= sizeof(WCHAR);
+
+                        pFsData->FileName = ExAllocatePool2(POOL_FLAG_PAGED, len, 'fs');
+                        if (pFsData->FileName != NULL)
+                            wcscpy(pFsData->FileName, pFileObject->FileName.Buffer);
+                        else
+                            goto Exit;
+                    }
+                    CreateData(pFsData, 1);
+
+                    ntStatus = STATUS_SUCCESS;
                 }
-                CreateData(pFsData, 1);
-
-                ntStatus = STATUS_SUCCESS;
+                else
+                    goto Exit;
             }
             else
-                goto Exit;
+                ntStatus = STATUS_SUCCESS;
         }
     }
 

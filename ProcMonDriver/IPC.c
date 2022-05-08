@@ -178,25 +178,12 @@ IPC_Init(
 	pThreadData->Type = Type;
 	wcscpy(pThreadData->Prefix, Prefix);
 
-	if (Type == 1)
-	{
-		PsCreateSystemThread(
-			&thread, THREAD_ALL_ACCESS,
-			NULL, NULL, NULL,
-			POPDataThread, pThreadData
-		);
-		ZwClose(thread);
-	}
-	else
-	{
-		IoCreateSystemThread(
-			g_pDriverObject,
-			&thread, THREAD_ALL_ACCESS,
-			NULL, NULL, NULL,
-			POPDataThread, pThreadData
-		);
-		ZwClose(thread);
-	}
+	PsCreateSystemThread(
+		&thread, THREAD_ALL_ACCESS,
+		NULL, NULL, NULL,
+		POPDataThread, pThreadData
+	);
+	ZwClose(thread);
 
 	return ntStatus;
 }
@@ -224,21 +211,6 @@ POPDataThread(
 
 	Type = pThreadData->Type;
 
-	ntStatus = OpenSharedMemory(
-		pThreadData->Prefix,
-		&hSection,
-		&hSharedSection,
-		hEvent
-	);
-	if (!NT_SUCCESS(ntStatus))
-	{
-		DbgPrint("OpenSharedMemory fail : 0x%x\n", ntStatus);
-		ExFreePool(pThreadData);
-		return;
-	}
-
-	ExFreePool(pThreadData);
-
 	switch (Type)
 	{
 	case 0:
@@ -261,6 +233,23 @@ POPDataThread(
 		return;
 		break;
 	}
+
+	ntStatus = OpenSharedMemory(
+		pThreadData->Prefix,
+		&hSection,
+		&hSharedSection,
+		hEvent
+	);
+	if (!NT_SUCCESS(ntStatus))
+	{
+		DbgPrint("OpenSharedMemory fail : 0x%x\n", ntStatus);
+		ExFreePool(pThreadData);
+		*pTargetExit = FALSE;
+		return;
+	}
+
+	ExFreePool(pThreadData);
+
 
 	while (*pTargetExit)
 	{
@@ -533,24 +522,11 @@ CreateData(
 	ComData->Data = pData;
 	ComData->Type = Type;
 
-	if (Type == 1)
-	{
-		PsCreateSystemThread(
-			&thread, THREAD_ALL_ACCESS,
-			NULL, NULL, NULL,
-			DataInsertThread, ComData
-		);
-		ZwClose(thread);
-	}
-	else
-	{
-		IoCreateSystemThread(
-			g_pDriverObject,
-			&thread, THREAD_ALL_ACCESS,
-			NULL, NULL, NULL,
-			DataInsertThread, ComData
-		);
-		ZwClose(thread);
-	}
+	PsCreateSystemThread(
+		&thread, THREAD_ALL_ACCESS,
+		NULL, NULL, NULL,
+		DataInsertThread, ComData
+	);
+	ZwClose(thread);
 }
 
