@@ -27,25 +27,25 @@ namespace ProcMon
             InitializeComponent();
             Win32.AllocConsole();
 
-            int result;
-            result = DriverManage.CreateDriverServices();
-            if(result != 0)
-            {
-                Console.WriteLine("CreateDriverServices : " + result);
-                return;
-            }
+            //int result;
+            //result = DriverManage.CreateDriverServices();
+            //if(result != 0)
+            //{
+            //    Console.WriteLine("CreateDriverServices : " + result);
+            //    return;
+            //}
 
-            for (int i = 0; i < 3; i++)
-            {
-                new IPC().Init(i);
+            //for (int i = 0; i < 3; i++)
+            //{
+            //    new IPC().Init(i);
 
-                result = DriverManage.StartService(i);
-                if (result != 0)
-                {
-                    Console.WriteLine("StartService : " + result);
-                    return;
-                }
-            }
+            //    result = DriverManage.StartService(i);
+            //    if (result != 0)
+            //    {
+            //        Console.WriteLine("StartService : " + result);
+            //        return;
+            //    }
+            //}
 
             //for (int i = 0; i < 3; i++)
             //{

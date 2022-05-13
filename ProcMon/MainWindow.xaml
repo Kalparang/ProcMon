@@ -1,12 +1,42 @@
-﻿<Window x:Class="ProcMon.MainWindow"
+﻿<Window
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ProcMon"
+        xmlns:ViewModel="clr-namespace:ProcMon.ViewModel" x:Class="ProcMon.MainWindow"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
+    <Window.DataContext>
+        <ViewModel:MainViewModel/>
+    </Window.DataContext>
     <Grid>
-        
+        <DataGrid x:Name="uiGrid"
+                  AutoGenerateColumns="False"
+                  ItemsSource="{Binding Path=driverModels, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
+                  HorizontalAlignment="Left" Height="420" Margin="207,0,0,0" VerticalAlignment="Top" Width="587">
+            <DataGrid.Columns>
+                <DataGridTextColumn Width="Auto" Header="Date" Binding="{Binding date}"/>
+                <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
+                <DataGridTextColumn Width="Auto" Header="TargetPID" Binding="{Binding TargetPID}"/>
+                <DataGridTextColumn Width="Auto" Header="Operation" Binding="{Binding Operation}"/>
+                <DataGridTextColumn Width="Auto" Header="DesiredAccess" Binding="{Binding DesiredAccess}"/>
+                <DataGridTextColumn Width="Auto" Header="MajorFunction" Binding="{Binding MajorFunction}"/>
+                <DataGridTextColumn Width="Auto" Header="FileName" Binding="{Binding FileName}"/>
+                <DataGridTextColumn Width="Auto" Header="NotifyClass" Binding="{Binding NotifyClass}"/>
+                <DataGridTextColumn Width="Auto" Header="Registry" Binding="{Binding RegistryFullPath}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <DataGrid x:Name="ProcessGrid"
+            AutoGenerateColumns="False"
+            ItemsSource="{Binding Path=processModels, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
+            HorizontalAlignment="Left" Height="420" VerticalAlignment="Top" Width="202">
+            <DataGrid.Columns>
+                <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
+                <DataGridTextColumn Width="Auto" Header="Name" Binding="{Binding ProcessName}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+
     </Grid>
 </Window>

@@ -8,6 +8,8 @@ using System.Runtime.InteropServices;
 using System.Reflection;
 using System.IO.MemoryMappedFiles;
 using System.Threading;
+using System.Diagnostics;
+using System.Management;
 
 namespace ProcMon
 {
@@ -183,6 +185,8 @@ namespace ProcMon
         EventWaitHandle userEvent = null;
         int Type = 0;
         long capacity;
+        public delegate void ReceiveData(int Type, object dataStruct);
+        public event ReceiveData rd;
 
         public void Init(int Type)
         {
@@ -280,26 +284,56 @@ namespace ProcMon
                     accessor.ReadArray<byte>(0, data, 0, data.Length);
                     Marshal.Copy(data, 0, p, (int)capacity);
 
-                    //switch (Type)
-                    //{
-                    //    case 0:
-                    //        targetData = (pinvoke.OBDATA)Marshal.PtrToStructure(p, typeof(pinvoke.OBDATA));
-                    //        Console.WriteLine("OB " + ((pinvoke.OBDATA)targetData).PID);
-                    //        break;
-                    //    case 1:
-                    //        targetData = (pinvoke.FSDATA)Marshal.PtrToStructure(p, typeof(pinvoke.FSDATA));
-                    //        Console.WriteLine("FS " + ((pinvoke.FSDATA)targetData).FileName);
-                    //        break;
-                    //    case 2:
-                    //        targetData = (pinvoke.REGDATA)Marshal.PtrToStructure(p, typeof(pinvoke.REGDATA));
-                    //        Console.WriteLine("REG " + ((pinvoke.REGDATA)targetData).RegistryFullPath);
-                    //        break;
-                    //}
+                    switch (Type)
+                    {
+                        case 0:
+                            targetData = (pinvoke.OBDATA)Marshal.PtrToStructure(p, typeof(pinvoke.OBDATA));
+                            break;
+                        case 1:
+                            targetData = (pinvoke.FSDATA)Marshal.PtrToStructure(p, typeof(pinvoke.FSDATA));
+                            break;
+                        case 2:
+                            targetData = (pinvoke.REGDATA)Marshal.PtrToStructure(p, typeof(pinvoke.REGDATA));
+                            break;
+                    }
+
+                    rd(Type, targetData);
 
                     kernelEvent.Set();
                 }
             }
             Marshal.FreeHGlobal(p);
+        }
+    }
+
+    public class ProcessWatch
+    {
+        public delegate void ReceiveEvent(int Type, EventArrivedEventArgs e);
+        public event ReceiveEvent re;
+
+        public ProcessWatch()
+        {
+            ManagementEventWatcher startWatch = new ManagementEventWatcher(
+                new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace"));
+            startWatch.EventArrived
+                                += new EventArrivedEventHandler(startWatch_EventArrived);
+            startWatch.Start();
+
+            ManagementEventWatcher stopWatch = new ManagementEventWatcher(
+                new WqlEventQuery("SELECT * FROM Win32_ProcessStopTrace"));
+            stopWatch.EventArrived
+                                += new EventArrivedEventHandler(stopWatch_EventArrived);
+            stopWatch.Start();
+        }
+
+        void startWatch_EventArrived(object sender, EventArrivedEventArgs e)
+        {
+            re(0, e);
+        }
+
+        void stopWatch_EventArrived(object sender, EventArrivedEventArgs e)
+        {
+            re(1, e);
         }
     }
 }

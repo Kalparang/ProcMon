@@ -88,7 +88,8 @@ namespace ProcMon
             public Int64 SystemTick;
             public long PID;
             public byte MajorFunction;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)] public string FileName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)]
+            public string FileName;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 0, CharSet = CharSet.Unicode)]
@@ -97,7 +98,8 @@ namespace ProcMon
             public Int64 SystemTick;
             public long PID;
             public Int32 NotifyClass;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)] public string RegistryFullPath;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)]
+            public string RegistryFullPath;
         }
 
         public const string OBPrefix = "obprefix";
