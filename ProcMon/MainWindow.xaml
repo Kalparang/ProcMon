@@ -7,36 +7,25 @@
         xmlns:ViewModel="clr-namespace:ProcMon.ViewModel" x:Class="ProcMon.MainWindow"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <Window.DataContext>
-        <ViewModel:MainViewModel/>
-    </Window.DataContext>
     <Grid>
         <DataGrid x:Name="uiGrid"
                   AutoGenerateColumns="False"
-                  ItemsSource="{Binding Path=driverModels, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
-                  HorizontalAlignment="Left" Height="420" Margin="207,0,0,0" VerticalAlignment="Top" Width="587">
+                  HorizontalAlignment="Left" Height="322" Margin="207,98,-0.4,0" VerticalAlignment="Top" Width="587">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="Date" Binding="{Binding date}"/>
                 <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
-                <DataGridTextColumn Width="Auto" Header="TargetPID" Binding="{Binding TargetPID}"/>
-                <DataGridTextColumn Width="Auto" Header="Operation" Binding="{Binding Operation}"/>
-                <DataGridTextColumn Width="Auto" Header="DesiredAccess" Binding="{Binding DesiredAccess}"/>
-                <DataGridTextColumn Width="Auto" Header="MajorFunction" Binding="{Binding MajorFunction}"/>
-                <DataGridTextColumn Width="Auto" Header="FileName" Binding="{Binding FileName}"/>
-                <DataGridTextColumn Width="Auto" Header="NotifyClass" Binding="{Binding NotifyClass}"/>
-                <DataGridTextColumn Width="Auto" Header="Registry" Binding="{Binding RegistryFullPath}"/>
+                <DataGridTextColumn Width="Auto" Header="Act" Binding="{Binding Act}"/>
+                <DataGridTextColumn Width="Auto" Header="Target" Binding="{Binding Target}"/>
             </DataGrid.Columns>
         </DataGrid>
         <DataGrid x:Name="ProcessGrid"
             AutoGenerateColumns="False"
-            ItemsSource="{Binding Path=processModels, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
             HorizontalAlignment="Left" Height="420" VerticalAlignment="Top" Width="202">
             <DataGrid.Columns>
+                <DataGridCheckBoxColumn Width="30" Header="Filter" Binding="{Binding IsFiltering, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
                 <DataGridTextColumn Width="Auto" Header="Name" Binding="{Binding ProcessName}"/>
             </DataGrid.Columns>
         </DataGrid>
-
-
     </Grid>
 </Window>

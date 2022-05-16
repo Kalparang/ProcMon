@@ -33,7 +33,7 @@ NTSTATUS FsFilterDispatchCreate(
     PFILE_OBJECT pFileObject = NULL;
     LARGE_INTEGER UTCTime;
 
-    if (pStackLocation->MajorFunction == IRP_MJ_CREATE)
+    //if (pStackLocation->MajorFunction == IRP_MJ_CREATE)
     {
         if (pStackLocation->FileObject != NULL)
         {
@@ -50,6 +50,7 @@ NTSTATUS FsFilterDispatchCreate(
                     pFsData->MajorFunction = pStackLocation->MajorFunction;
                     pFsData->PID = PsGetCurrentProcessId();
                     pFsData->SystemTick = UTCTime.QuadPart;
+                    pFsData->Flag = pStackLocation->Flags;
                     pFsData->FileName = NULL;
 
                     if (pFileObject->FileName.Buffer != NULL)
@@ -60,7 +61,7 @@ NTSTATUS FsFilterDispatchCreate(
 
                         pFsData->FileName = ExAllocatePool2(POOL_FLAG_PAGED, len, 'fs');
                         if (pFsData->FileName != NULL)
-                            wcscpy(pFsData->FileName, pFileObject->FileName.Buffer);
+							wcscpy(pFsData->FileName, pFileObject->FileName.Buffer);
                         else
                             goto Exit;
                     }

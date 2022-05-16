@@ -23,6 +23,7 @@ typedef struct _FSDATA
 	INT64 SystemTick;
 	HANDLE PID;
 	UCHAR MajorFunction;
+	UCHAR Flag;
 	WCHAR FileName[PROC_MAX_PATH];
 } FSDATA, * PFSDATA;
 
@@ -31,6 +32,7 @@ typedef struct _FSDATA2
 	INT64 SystemTick;
 	HANDLE PID;
 	UCHAR MajorFunction;
+	UCHAR Flag;
 	PWCH FileName;
 } FSDATA2, * PFSDATA2;
 

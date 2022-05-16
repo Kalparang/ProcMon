@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace ProcMon
 {
-    class pinvoke
+    public class pinvoke
     {
         [DllImport("advapi32.dll", EntryPoint = "OpenSCManagerW", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern IntPtr OpenSCManager(
@@ -87,7 +88,8 @@ namespace ProcMon
         {
             public Int64 SystemTick;
             public long PID;
-            public byte MajorFunction;
+            public IRP_MAJORFUNCTION MajorFunction;
+            public IO_STACK_LOCATION_FLAGS Flag;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)]
             public string FileName;
         }
@@ -97,10 +99,17 @@ namespace ProcMon
         {
             public Int64 SystemTick;
             public long PID;
-            public Int32 NotifyClass;
+            public REG_NOTIFY_CLASS NotifyClass;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)]
             public string RegistryFullPath;
         }
+
+        [System.Runtime.InteropServices.DllImport("User32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr handle);
+        [System.Runtime.InteropServices.DllImport("User32.dll")]
+        private static extern bool ShowWindow(IntPtr handle, CMD_SHOW nCmdShow);
+        [System.Runtime.InteropServices.DllImport("User32.dll")]
+        private static extern bool IsIconic(IntPtr handle);
 
         public const string OBPrefix = "obprefix";
         public const string FSPrefix = "fsprefix";
@@ -502,6 +511,177 @@ namespace ProcMon
             SESSIONCHANGE = 0x00000080,
         }
 
-        
+        /// <summary>
+        /// FileSystem에서 쓰임
+        /// Create부터 Write까지만 쓰임
+        /// </summary>
+        public enum IRP_MAJORFUNCTION : byte
+        {
+            IRP_MJ_CREATE = 0x00,
+            IRP_MJ_CREATE_NAMED_PIPE = 0x01,
+            IRP_MJ_CLOSE = 0x02,
+            IRP_MJ_READ = 0x03,
+            IRP_MJ_WRITE = 0x04,
+            IRP_MJ_QUERY_INFORMATION = 0x05,
+            IRP_MJ_SET_INFORMATION = 0x06,
+            IRP_MJ_QUERY_EA = 0x07,
+            IRP_MJ_SET_EA = 0x08,
+            IRP_MJ_FLUSH_BUFFERS = 0x09,
+            IRP_MJ_QUERY_VOLUME_INFORMATION = 0x0a,
+            IRP_MJ_SET_VOLUME_INFORMATION = 0x0b,
+            IRP_MJ_DIRECTORY_CONTROL = 0x0c,
+            IRP_MJ_FILE_SYSTEM_CONTROL = 0x0d,
+            IRP_MJ_DEVICE_CONTROL = 0x0e,
+            IRP_MJ_INTERNAL_DEVICE_CONTROL = 0x0f,
+            IRP_MJ_SHUTDOWN = 0x10,
+            IRP_MJ_LOCK_CONTROL = 0x11,
+            IRP_MJ_CLEANUP = 0x12,
+            IRP_MJ_CREATE_MAILSLOT = 0x13,
+            IRP_MJ_QUERY_SECURITY = 0x14,
+            IRP_MJ_SET_SECURITY = 0x15,
+            IRP_MJ_POWER = 0x16,
+            IRP_MJ_SYSTEM_CONTROL = 0x17,
+            IRP_MJ_DEVICE_CHANGE = 0x18,
+            IRP_MJ_QUERY_QUOTA = 0x19,
+            IRP_MJ_SET_QUOTA = 0x1a,
+            IRP_MJ_PNP = 0x1b,
+            IRP_MJ_PNP_POWER = IRP_MJ_PNP,
+            IRP_MJ_MAXIMUM_FUNCTION = 0x1b
+        }
+
+        public enum IO_STACK_LOCATION_FLAGS : byte
+        {
+            SL_NORMAL = 0x00,
+            SL_KEY_SPECIFIED = 0x01,
+            SL_OVERRIDE_VERIFY_VOLUME = 0x02,
+            SL_WRITE_THROUGH = 0x04,
+            SL_FT_SEQUENTIAL_WRITE = 0x08,
+            SL_FORCE_DIRECT_WRITE = 0x10,
+            SL_REALTIME_STREAM = 0x20,
+            SL_PERSISTENT_MEMORY_FIXED_MAPPING = 0x20
+        }
+
+        public enum REG_NOTIFY_CLASS : int
+        {
+            RegNtDeleteKey,
+            RegNtPreDeleteKey = RegNtDeleteKey,
+            RegNtSetValueKey,
+            RegNtPreSetValueKey = RegNtSetValueKey,
+            RegNtDeleteValueKey,
+            RegNtPreDeleteValueKey = RegNtDeleteValueKey,
+            RegNtSetInformationKey,
+            RegNtPreSetInformationKey = RegNtSetInformationKey,
+            RegNtRenameKey,
+            RegNtPreRenameKey = RegNtRenameKey,
+            RegNtEnumerateKey,
+            RegNtPreEnumerateKey = RegNtEnumerateKey,
+            RegNtEnumerateValueKey,
+            RegNtPreEnumerateValueKey = RegNtEnumerateValueKey,
+            RegNtQueryKey,
+            RegNtPreQueryKey = RegNtQueryKey,
+            RegNtQueryValueKey,
+            RegNtPreQueryValueKey = RegNtQueryValueKey,
+            RegNtQueryMultipleValueKey,
+            RegNtPreQueryMultipleValueKey = RegNtQueryMultipleValueKey,
+            RegNtPreCreateKey,
+            RegNtPostCreateKey,
+            RegNtPreOpenKey,
+            RegNtPostOpenKey,
+            RegNtKeyHandleClose,
+            RegNtPreKeyHandleClose = RegNtKeyHandleClose,
+            //
+            // .Net only
+            //    
+            RegNtPostDeleteKey,
+            RegNtPostSetValueKey,
+            RegNtPostDeleteValueKey,
+            RegNtPostSetInformationKey,
+            RegNtPostRenameKey,
+            RegNtPostEnumerateKey,
+            RegNtPostEnumerateValueKey,
+            RegNtPostQueryKey,
+            RegNtPostQueryValueKey,
+            RegNtPostQueryMultipleValueKey,
+            RegNtPostKeyHandleClose,
+            RegNtPreCreateKeyEx,
+            RegNtPostCreateKeyEx,
+            RegNtPreOpenKeyEx,
+            RegNtPostOpenKeyEx,
+            //
+            // new to Windows Vista
+            //
+            RegNtPreFlushKey,
+            RegNtPostFlushKey,
+            RegNtPreLoadKey,
+            RegNtPostLoadKey,
+            RegNtPreUnLoadKey,
+            RegNtPostUnLoadKey,
+            RegNtPreQueryKeySecurity,
+            RegNtPostQueryKeySecurity,
+            RegNtPreSetKeySecurity,
+            RegNtPostSetKeySecurity,
+            //
+            // per-object context cleanup
+            //
+            RegNtCallbackObjectContextCleanup,
+            //
+            // new in Vista SP2 
+            //
+            RegNtPreRestoreKey,
+            RegNtPostRestoreKey,
+            RegNtPreSaveKey,
+            RegNtPostSaveKey,
+            RegNtPreReplaceKey,
+            RegNtPostReplaceKey,
+            //
+            // new to Windows 10
+            //
+            RegNtPreQueryKeyName,
+            RegNtPostQueryKeyName,
+
+            MaxRegNtNotifyClass //should always be the last enum
+        }
+
+        public enum CMD_SHOW : int
+        {
+            SW_HIDE,
+            SW_SHOWNORMAL,
+            SW_NORMAL = SW_SHOWNORMAL,
+            SW_SHOWMINIMIZED,
+            SW_SHOWMAXIMIZED,
+            SW_MAXIMIZE = SW_SHOWMAXIMIZED,
+            SW_SHOWNOACTIVATE,
+            SW_SHOW,
+            SW_MINIMIZE,
+            SW_SHOWMINNOACTIVE,
+            SW_SHOWNA,
+            SW_RESTORE,
+            SW_SHOWDEFAULT,
+            SW_FORCEMINIMIZE
+        }
+        public enum DRIVER_TYPE : int
+        {
+            OB,
+            FILESYSTEM,
+            REGISTRY
+        }
+
+        public static void BringProcessToFront(long PID)
+        {
+            try
+            {
+                IntPtr handle = Process.GetProcessById((int)PID).MainWindowHandle;
+                if (IsIconic(handle))
+                {
+                    ShowWindow(handle, CMD_SHOW.SW_RESTORE);
+                }
+
+                SetForegroundWindow(handle);
+            }
+            catch(Exception e)
+            {
+
+            }
+        }
     }
 }

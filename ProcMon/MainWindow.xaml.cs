@@ -22,10 +22,20 @@ namespace ProcMon
     /// </summary>
     public partial class MainWindow : Window
     {
+        ViewModel.MainViewModel mv;
         public MainWindow()
         {
             InitializeComponent();
             Win32.AllocConsole();
+            mv = new ViewModel.MainViewModel();
+
+            DataContext = mv;
+            uiGrid.ItemsSource = mv.DriverCollection;
+            ProcessGrid.ItemsSource = mv.ProcessCollection;
+            ProcessGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
+            uiGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
+            mv.uiGrid = uiGrid;
+            mv.processGrid = ProcessGrid;
 
             //int result;
             //result = DriverManage.CreateDriverServices();

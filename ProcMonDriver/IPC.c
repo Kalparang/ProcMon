@@ -288,6 +288,7 @@ POPDataThread(
 				((PFSDATA)tempData)->MajorFunction = ((PFSDATA2)pTargetList[0]->Data)->MajorFunction;
 				((PFSDATA)tempData)->PID = ((PFSDATA2)pTargetList[0]->Data)->PID;
 				((PFSDATA)tempData)->SystemTick = ((PFSDATA2)pTargetList[0]->Data)->SystemTick;
+				((PFSDATA)tempData)->Flag = ((PFSDATA2)pTargetList[0]->Data)->Flag;
 				if (((PFSDATA2)pTargetList[0]->Data)->FileName != NULL)
 				{
 					wcscpy(((PFSDATA)tempData)->FileName, ((PFSDATA2)pTargetList[0]->Data)->FileName);

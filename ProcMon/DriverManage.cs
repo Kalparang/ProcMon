@@ -48,7 +48,7 @@ namespace ProcMon
 
             for (int i = 0; i < 3; i++)
             {
-                var Service = OpenDriverSerivce(SCManager, i);
+                var Service = OpenDriverSerivce(SCManager, (pinvoke.DRIVER_TYPE)i);
                 pinvoke.SERVICE_STATUS ss = new pinvoke.SERVICE_STATUS();
 
                 pinvoke.ControlService(Service, pinvoke.SERVICE_CONTROL.STOP, ref ss);
@@ -61,7 +61,7 @@ namespace ProcMon
             return 0;
         }
 
-        public static int StartService(int Type)
+        public static int StartService(pinvoke.DRIVER_TYPE Type)
         {
             var SCManager = OpenSCManager();
             if (SCManager == IntPtr.Zero)
@@ -80,7 +80,7 @@ namespace ProcMon
             return 0;
         }
 
-        public static bool StopService(int Type)
+        public static bool StopService(pinvoke.DRIVER_TYPE Type)
         {
             var SCManager = OpenSCManager();
             if (SCManager == IntPtr.Zero)
@@ -149,19 +149,19 @@ namespace ProcMon
             return Service;
         }
 
-        static IntPtr OpenDriverSerivce(IntPtr SCManager, int Type)
+        static IntPtr OpenDriverSerivce(IntPtr SCManager, pinvoke.DRIVER_TYPE Type)
         {
             string ServiceName;
 
             switch (Type)
             {
-                case 0:
+                case pinvoke.DRIVER_TYPE.OB:
                     ServiceName = pinvoke.OBServiceName;
                     break;
-                case 1:
+                case pinvoke.DRIVER_TYPE.FILESYSTEM:
                     ServiceName = pinvoke.FSServiceName;
                     break;
-                case 2:
+                case pinvoke.DRIVER_TYPE.REGISTRY:
                     ServiceName = pinvoke.REGServiceName;
                     break;
                 default:
@@ -183,14 +183,18 @@ namespace ProcMon
         object targetData = null;
         EventWaitHandle kernelEvent = null;
         EventWaitHandle userEvent = null;
-        int Type = 0;
+        pinvoke.DRIVER_TYPE Type = 0;
         long capacity;
-        public delegate void ReceiveData(int Type, object dataStruct);
+        public delegate void ReceiveData(pinvoke.DRIVER_TYPE Type, object dataStruct);
         public event ReceiveData rd;
+        List<string> reject2;
+        Dictionary<long, List<string>> reject;
 
-        public void Init(int Type)
+        public void Init(pinvoke.DRIVER_TYPE Type)
         {
             this.Type = Type;
+            reject = new Dictionary<long, List<string>>();
+            reject2 = new List<string>();
 
             CreateDriverEvent();
 
@@ -217,17 +221,17 @@ namespace ProcMon
 
             switch (Type)
             {
-                case 0:
+                case pinvoke.DRIVER_TYPE.OB:
                     mapName += pinvoke.OBPrefix;
                     targetData = new pinvoke.OBDATA();
                     capacity = Marshal.SizeOf(targetData);
                     break;
-                case 1:
+                case pinvoke.DRIVER_TYPE.FILESYSTEM:
                     mapName += pinvoke.FSPrefix;
                     targetData = new pinvoke.FSDATA();
                     capacity = Marshal.SizeOf(targetData);
                     break;
-                case 2:
+                case pinvoke.DRIVER_TYPE.REGISTRY:
                     mapName += pinvoke.REGPrefix;
                     targetData = new pinvoke.REGDATA();
                     capacity = Marshal.SizeOf(targetData);
@@ -249,13 +253,13 @@ namespace ProcMon
 
             switch (Type)
             {
-                case 0:
+                case pinvoke.DRIVER_TYPE.OB:
                     eventName += pinvoke.OBPrefix;
                     break;
-                case 1:
+                case pinvoke.DRIVER_TYPE.FILESYSTEM:
                     eventName += pinvoke.FSPrefix;
                     break;
-                case 2:
+                case pinvoke.DRIVER_TYPE.REGISTRY:
                     eventName += pinvoke.REGPrefix;
                     break;
                 default:
@@ -272,7 +276,7 @@ namespace ProcMon
 
             byte[] data = new byte[capacity];
             IntPtr p = Marshal.AllocHGlobal((int)capacity);
-
+            //bool Use = true;
             kernelEvent.Set();
 
             using (var accessor = mm.CreateViewAccessor())
@@ -283,21 +287,51 @@ namespace ProcMon
 
                     accessor.ReadArray<byte>(0, data, 0, data.Length);
                     Marshal.Copy(data, 0, p, (int)capacity);
+                    //Use = true;
 
                     switch (Type)
                     {
-                        case 0:
+                        case pinvoke.DRIVER_TYPE.OB:
                             targetData = (pinvoke.OBDATA)Marshal.PtrToStructure(p, typeof(pinvoke.OBDATA));
                             break;
-                        case 1:
+                        case pinvoke.DRIVER_TYPE.FILESYSTEM:
                             targetData = (pinvoke.FSDATA)Marshal.PtrToStructure(p, typeof(pinvoke.FSDATA));
+                            //pinvoke.FSDATA fs = (pinvoke.FSDATA)targetData;
+                            ////if (!reject.ContainsKey(fs.PID))
+                            ////    reject.Add(fs.PID, new List<string>());
+                            //if (fs.Flag == 8)
+                            //{
+                            //    //Console.WriteLine(fs.PID + " : " + fs.FileName);
+                            //    //if (!reject[fs.PID].Contains(fs.FileName))
+                            //    //    reject[fs.PID].Add(fs.FileName);
+                            //    bool check = reject2.Contains(fs.FileName);
+                            //    Console.WriteLine(fs.FileName + " | " + check);
+
+                            //    if (!check)
+                            //    {
+                            //        reject2.Add(fs.FileName);
+                            //        Console.WriteLine(check);
+                            //    }
+                            //    Use = false;
+                            //}
+                            //else
+                            //{
+                            //    //if (reject[fs.PID].Contains(fs.FileName))
+                            //    //    Use = false;
+
+                            //    if (reject2.Contains(fs.FileName))
+                            //        Use = false;
+                            //}
+                            //if (fs.PID == 0 || fs.PID == 4)
+                            //    Use = false;
                             break;
-                        case 2:
+                        case pinvoke.DRIVER_TYPE.REGISTRY:
                             targetData = (pinvoke.REGDATA)Marshal.PtrToStructure(p, typeof(pinvoke.REGDATA));
                             break;
                     }
 
-                    rd(Type, targetData);
+                    //if(Use)
+                        rd(Type, targetData);
 
                     kernelEvent.Set();
                 }
