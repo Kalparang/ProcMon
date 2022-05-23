@@ -53,15 +53,15 @@ NTSTATUS FsFilterDispatchCreate(
                     pFsData->Flag = pStackLocation->Flags;
                     pFsData->FileName = NULL;
 
-                    if (pFileObject->FileName.Buffer != NULL)
+                    if (pFileObject->FileName.Length > 0)
                     {
                         len = 1;
-                        len += wcslen(pFileObject->FileName.Buffer);
+                        len += pFileObject->FileName.Length;
                         len *= sizeof(WCHAR);
 
                         pFsData->FileName = ExAllocatePool2(POOL_FLAG_PAGED, len, 'fs');
                         if (pFsData->FileName != NULL)
-							wcscpy(pFsData->FileName, pFileObject->FileName.Buffer);
+							wcsncpy(pFsData->FileName, pFileObject->FileName.Buffer, pFileObject->FileName.Length);
                         else
                             goto Exit;
                     }

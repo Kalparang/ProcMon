@@ -740,10 +740,10 @@ Return Value:
 				else
 				{
 					if (RegistryPath->Name.Length > 0)
-						wcscat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer);
+						wcsncat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer, RegistryPath->Name.Length);
 					wcscat(pRegData->RegistryFullPath, L"\\");
 					if (RegistryName->Length > 0)
-						wcscat(pRegData->RegistryFullPath, RegistryName->Buffer);
+						wcsncat(pRegData->RegistryFullPath, RegistryName->Buffer, RegistryName->Length);
 				}
 			}
 
