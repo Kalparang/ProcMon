@@ -35,27 +35,16 @@ namespace ProcMon.Model
 
             return this.Target == other.Target;
         }
+    }
 
-            //public int? TargetPID { get; set; }
-            //public int? Operation { get; set; }
-            //public int? DesiredAccess { get; set; }
-
-            //public int? MajorFunction { get; set; }
-            //public string FileName { get; set; }
-
-            //public int? NotifyClass { get; set; } 
-            //public string RegistryFullPath { get; set; }
-
-            //public event PropertyChangedEventHandler PropertyChanged;
-
-            //protected void OnpropertyChanged(string propertyName)
-            //{
-            //    if(PropertyChanged != null)
-            //    {
-            //        PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
-            //    }
-            //}
-        }
+    public class DBModel
+    {
+        public DateTime date { get; set; }
+        public string Process { get; set; }
+        public string Act { get; set; }
+        public string Target { get; set; }
+        public pinvoke.DRIVER_TYPE Type { get; set; }
+    }
 
     public class ProcessModel
     {
@@ -72,7 +61,7 @@ namespace ProcMon.Model
             {
                 _IsFiltering = value;
                 if(fc != null)
-                    fc(this.PID, this.ProcessName, this.IsFiltering);
+                    fc(this.PID, this.ProcessName.ToLower(), this.IsFiltering);
             }
         }
 

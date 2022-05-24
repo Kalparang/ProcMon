@@ -330,7 +330,7 @@ namespace ProcMon
                             break;
                     }
 
-                    //if(Use)
+                    if(rd != null)
                         rd(Type, targetData);
 
                     kernelEvent.Set();

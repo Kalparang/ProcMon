@@ -33,32 +33,34 @@ namespace ProcMonTest
         void threadcontext()
         {
             var f = new FileTest();
+            var p = new ProcessTest();
 
             while (true)
             {
                 try
                 {
-                    string input;
-                    int num;
-                    Console.Write("File\n1 : Print List\n2 : Open File\n 3 : Close File\n4 : Delete File\n> ");
-                    input = Console.ReadLine();
-                    num = int.Parse(input);
+                    p.InputCommand();
+                    //string input;
+                    //int num;
+                    //Console.Write("File\n1 : Print List\n2 : Open File\n 3 : Close File\n4 : Delete File\n> ");
+                    //input = Console.ReadLine();
+                    //num = int.Parse(input);
 
-                    switch (num)
-                    {
-                        case 1:
-                            f.PrintList();
-                            break;
-                        case 2:
-                            f.OpenFile();
-                            break;
-                        case 3:
-                            f.CloseFile();
-                            break;
-                        case 4:
-                            f.DeleteFile();
-                            break;
-                    }
+                    //switch (num)
+                    //{
+                    //    case 1:
+                    //        f.PrintList();
+                    //        break;
+                    //    case 2:
+                    //        f.OpenFile();
+                    //        break;
+                    //    case 3:
+                    //        f.CloseFile();
+                    //        break;
+                    //    case 4:
+                    //        f.DeleteFile();
+                    //        break;
+                    //}
                 }
                 catch (Exception e)
                 {

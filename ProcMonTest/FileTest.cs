@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Diagnostics;
 
 namespace ProcMonTest
 {
@@ -92,5 +93,122 @@ namespace ProcMonTest
     public class RegistryTest
     {
 
+    }
+
+    public class ProcessTest
+    {
+        List<Process> processes;
+
+        public ProcessTest()
+        {
+            processes = new List<Process>();
+        }
+
+        public void InputCommand()
+        {
+            Console.WriteLine("1 : Start Process");
+            Console.WriteLine("2 : Open Process");
+            Console.WriteLine("3 : Print Process");
+            Console.WriteLine("4 : Close Process");
+            Console.WriteLine("5 : Terminate Process");
+            Console.Write("> ");
+            string input = Console.ReadLine();
+
+            try
+            {
+                int num = int.Parse(input);
+
+                switch(num)
+                {
+                    case 1:
+                        StartProcess();
+                        break;
+                    case 2:
+                        OpenProcess();
+                        break;
+                    case 3:
+                        PrintProcess();
+                        break;
+                    case 4:
+                        CloseProcess();
+                        break;
+                    case 5:
+                        TerminateProcess();
+                        break;
+                }
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
+        public void StartProcess()
+        {
+            Console.Write("StartProcess Path\n> ");
+            string path = Console.ReadLine();
+
+            try
+            {
+                processes.Add(Process.Start(path));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
+        public void OpenProcess()
+        {
+            Console.WriteLine("OpenProcess PID\n> ");
+            string input = Console.ReadLine();
+
+            try
+            {
+                processes.Add(Process.GetProcessById(int.Parse(input)));
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
+        public void PrintProcess()
+        {
+            for(int i = 0; i < processes.Count; i++)
+            {
+                Console.WriteLine(i + " : " + processes[i].Id + " | " + processes[i].ProcessName);
+            }
+        }
+
+        public void CloseProcess()
+        {
+            Console.Write("CloseProcess Index\n> ");
+            string input = Console.ReadLine();
+
+            try
+            {
+                processes.RemoveAt(int.Parse(input));
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
+
+        public void TerminateProcess()
+        {
+            Console.Write("TerminateProcess PID\n> ");
+            string input = Console.ReadLine();
+
+            try
+            {
+                Process.GetProcessById(int.Parse(input)).Kill();
+            }
+            catch(Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+        }
     }
 }

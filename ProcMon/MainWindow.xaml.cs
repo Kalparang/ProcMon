@@ -27,15 +27,15 @@ namespace ProcMon
         {
             InitializeComponent();
             Win32.AllocConsole();
-            mv = new ViewModel.MainViewModel();
+            //mv = new ViewModel.MainViewModel();
 
-            DataContext = mv;
-            uiGrid.ItemsSource = mv.DriverCollection;
-            ProcessGrid.ItemsSource = mv.ProcessCollection;
-            ProcessGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
-            uiGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
-            mv.uiGrid = uiGrid;
-            mv.processGrid = ProcessGrid;
+            //DataContext = mv;
+            //uiGrid.ItemsSource = mv.DriverCollection;
+            //ProcessGrid.ItemsSource = mv.ProcessCollection;
+            //ProcessGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
+            //uiGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
+            //mv.uiGrid = uiGrid;
+            //mv.processGrid = ProcessGrid;
 
             //int result;
             //result = DriverManage.CreateDriverServices();
@@ -83,6 +83,11 @@ namespace ProcMon
             public static extern Boolean AllocConsole();
             [DllImport("kernel32.dll")]
             public static extern Boolean FreeConsole();
+        }
+
+        private void ProcessGrid_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+
         }
     }
 }

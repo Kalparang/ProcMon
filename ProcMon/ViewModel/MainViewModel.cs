@@ -17,9 +17,88 @@ namespace ProcMon.ViewModel
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        Dictionary<long, List<string>> rejectList;
-        public DataGrid uiGrid;
-        public DataGrid processGrid;
+        Dictionary<long, Dictionary<string, Model.DriverModel>> TargetList;
+        DBManage db;
+
+        public CommandControl btn_cmd { get; set; }
+        object ListLock;
+
+        Visibility _processlist_currentprocess;
+        public Visibility processlist_currentprocess
+        {
+            get
+            {
+                return _processlist_currentprocess;
+            }
+            set
+            {
+                _processlist_currentprocess = value;
+                OnPropertyChanged("processlist_currentprocess");
+            }
+        }
+        Visibility _processlist_db;
+        public Visibility processlist_db
+        {
+            get
+            {
+                return _processlist_db;
+            }
+            set
+            {
+                _processlist_db = value;
+                if (processlist_db == Visibility.Visible)
+                {
+                    var processes = db.ReadProcesses();
+                    foreach (var p in processes)
+                    {
+                        p.fc += FilterChanged;
+                        processModels_DB.Add(p);
+                    }
+                }
+                else
+                    processModels_DB.Clear();
+                OnPropertyChanged("processlist_db");
+            }
+        }
+
+        Visibility _itemlist_currenprocess;
+        public Visibility itemlist_currentprocess
+        {
+            get
+            {
+                return _itemlist_currenprocess;
+            }
+            set
+            {
+                _itemlist_currenprocess = value;
+                OnPropertyChanged("itemlist_currentprocess");
+            }
+        }
+        Visibility _itemlist_db;
+        public Visibility itemlist_db
+        {
+            get
+            {
+                return _itemlist_db;
+            }
+            set
+            {
+                _itemlist_db = value;
+                if (itemlist_db == Visibility.Visible)
+                {
+                    var items = db.ReadItems();
+                    foreach (var item in items)
+                    {
+                        drivermodels_db.Add(item);
+                    }
+                }
+                else
+                    drivermodels_db.Clear();
+
+                OnPropertyChanged("itemlist_db");
+            }
+        }
+
 
         public MainViewModel()
         {
@@ -27,11 +106,27 @@ namespace ProcMon.ViewModel
             DriverCollectionViewSource.Source = this.driverModels;
             DriverCollectionViewSource.Filter += ApplyFilter;
 
+            DriverCollectionViewSource_DB = new CollectionViewSource();
+            DriverCollectionViewSource_DB.Source = this.drivermodels_db;
+            DriverCollectionViewSource_DB.Filter += ApplyFilter;
+
             ProcessCollectionViewSource = new CollectionViewSource();
             ProcessCollectionViewSource.Source = this.processModels;
 
+            ProcessCollectionViewSource_DB = new CollectionViewSource();
+            ProcessCollectionViewSource_DB.Source = this._processModels_DB;
 
-            rejectList = new Dictionary<long, List<string>>();
+            btn_cmd = new CommandControl(Button_Event, CanExecute_Button);
+
+            ListLock = new object();
+            TargetList = new Dictionary<long, Dictionary<string, Model.DriverModel>>();
+
+            db = new DBManage();
+
+            processlist_currentprocess = Visibility.Visible;
+            processlist_db = Visibility.Hidden;
+            itemlist_currentprocess = Visibility.Visible;
+            itemlist_db = Visibility.Hidden;
 
             int result;
 
@@ -44,20 +139,20 @@ namespace ProcMon.ViewModel
 
             Console.WriteLine("CreateService Success");
 
-            IPC iPC = new IPC();
-            iPC.rd += AddData;
-            iPC.Init(pinvoke.DRIVER_TYPE.REGISTRY);
+            //IPC iPC = new IPC();
+            //iPC.rd += AddData;
+            //iPC.Init(pinvoke.DRIVER_TYPE.REGISTRY);
 
-            DriverManage.StartService(pinvoke.DRIVER_TYPE.REGISTRY);
+            //DriverManage.StartService(pinvoke.DRIVER_TYPE.REGISTRY);
 
-            //for (int i = 0; i < 3; i++)
-            //{
-            //    IPC iPC = new IPC();
-            //    iPC.rd += AddData;
-            //    iPC.Init(i);
+            for (pinvoke.DRIVER_TYPE i = 0; i < pinvoke.DRIVER_TYPE.LAST; i++)
+            {
+                IPC iPC = new IPC();
+                iPC.rd += AddData;
+                iPC.Init(i);
 
-            //    DriverManage.StartService(i);
-            //}
+                DriverManage.StartService(i);
+            }
 
             var process = Process.GetProcesses();
             foreach(var p in process)
@@ -71,40 +166,125 @@ namespace ProcMon.ViewModel
 
             var pw = new ProcessWatch();
             pw.re += ProcessEvent;
+            pw.re += db.ProcessEvent;
         }
 
         private void ApplyFilter(object sender, FilterEventArgs e)
         {
-            Model.DriverModel item = (Model.DriverModel)e.Item;
+            CollectionViewSource viewSource = (CollectionViewSource)sender;
 
-            if (filterList.Count == 0)
+            Model.DriverModel currentprocess = e.Item as Model.DriverModel;
+            Model.DBModel db = e.Item as Model.DBModel;
+
+            if(currentprocess != null)
             {
-                e.Accepted = true;
+                if (filterPIDList.Count > 0
+                    && !string.IsNullOrWhiteSpace(filterString))
+                {
+                    e.Accepted = filterPIDList.Contains(currentprocess.PID)
+                        && currentprocess.Target.ToLower().Contains(filterString.ToLower());
+                }
+                else if (filterPIDList.Count > 0)
+                    e.Accepted = filterPIDList.Contains(currentprocess.PID);
+                else if (!string.IsNullOrWhiteSpace(filterString))
+                    currentprocess.Target.ToLower().Contains(filterString.ToLower());
+                else
+                    e.Accepted = true;
             }
-            else
+            if(db != null)
             {
-                e.Accepted = filterList.Contains(item.PID);
+                if (filterStringList.Count > 0
+                    && !string.IsNullOrWhiteSpace(filterString))
+                {
+                    e.Accepted = filterStringList.Contains(db.Process.ToLower())
+                        && db.Target.ToLower().Contains(filterString.ToLower());
+                }
+                else if (filterStringList.Count > 0)
+                    e.Accepted = filterStringList.Contains(db.Process.ToLower());
+                else if (!string.IsNullOrWhiteSpace(filterString))
+                    db.Target.ToLower().Contains(filterString.ToLower());
+                else
+                    e.Accepted = true;
             }
         }
 
-        List<int> _filterList;
-        public List<int> filterList
+        List<string> _filterstringList = null;
+        public List<string> filterStringList
         {
             get
             {
-                if (_filterList == null)
-                    _filterList = new List<int>();
-                return _filterList;
+                if (_filterstringList == null)
+                    _filterstringList = new List<string>();
+                return _filterstringList;
             }
             set
             {
-                _filterList = value;
+                _filterstringList = value;
+            }
+        }
+        List<int> _filterpidList;
+        public List<int> filterPIDList
+        {
+            get
+            {
+                if (_filterpidList == null)
+                    _filterpidList = new List<int>();
+                return _filterpidList;
+            }
+            set
+            {
+                _filterpidList = value;
+            }
+        }
+
+        string _filterString = null;
+        public string filterString
+        {
+            get
+            {
+                if (_filterString == null)
+                    _filterString = string.Empty;
+                return _filterString;
+            }
+            set
+            {
+                _filterString = value;
+                OnFilterChange();
             }
         }
 
         private void OnFilterChange()
         {
-            DriverCollectionViewSource.View.Refresh();
+            if (itemlist_currentprocess == Visibility.Visible)
+                DriverCollectionViewSource.View.Refresh();
+            else
+                DriverCollectionViewSource_DB.View.Refresh();
+        }
+
+        void Button_Event(object obj)
+        {
+            Button button = (Button)obj;
+
+            switch(button.Name)
+            {
+                case "Button_List_Process":
+                    processlist_currentprocess = Visibility.Visible;
+                    processlist_db = Visibility.Hidden;
+                    itemlist_currentprocess = Visibility.Visible;
+                    itemlist_db = Visibility.Hidden;
+                    break;
+                case "Button_List_DB":
+                    processlist_currentprocess = Visibility.Hidden;
+                    processlist_db = Visibility.Visible;
+                    itemlist_currentprocess = Visibility.Hidden;
+                    itemlist_db = Visibility.Visible;
+                    break;
+            }
+        }
+
+        bool CanExecute_Button(object obj)
+        {
+            return true;
         }
 
         CollectionViewSource ProcessCollectionViewSource { get; set; }
@@ -129,49 +309,65 @@ namespace ProcMon.ViewModel
             }
         }
 
-        public void ProcessGrid_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        CollectionViewSource ProcessCollectionViewSource_DB { get; set; }
+        public ICollectionView ProcessCollection_DB
+        {
+            get { return ProcessCollectionViewSource_DB.View; }
+        }
+        ObservableCollection<Model.ProcessModel> _processModels_DB = null;
+        public ObservableCollection<Model.ProcessModel> processModels_DB
+        {
+            get
+            {
+                if (_processModels_DB == null)
+                {
+                    _processModels_DB = new ObservableCollection<Model.ProcessModel>();
+                }
+                return _processModels_DB;
+            }
+            set
+            {
+                _processModels_DB = value;
+            }
+        }
+
+        public void Grid_MouseRightClick(object sender, MouseEventArgs e)
         {
             DataGrid dataGrid = (DataGrid)sender;
 
             if (dataGrid.SelectedItem == null)
                 return;
 
-            if(dataGrid.Name == uiGrid.Name)
+            if(dataGrid.Name == "uiGrid")
             {
                 Model.DriverModel model = (Model.DriverModel)dataGrid.SelectedItem;
 
-                if(e.ChangedButton == MouseButton.Right)
+                switch (model.Type)
                 {
-                    switch(model.Type)
-                    {
-                        case pinvoke.DRIVER_TYPE.OB:
-                            Clipboard.SetText(model.Target);
-                            break;
-                        case pinvoke.DRIVER_TYPE.FILESYSTEM:
-                            try
-                            {
-                                string Path = "C:" + model.Target;
-                                Process.Start("explorer.exe", "/select, " + Path);
-                            }
-                            catch (Exception ex)
-                            {
+                    case pinvoke.DRIVER_TYPE.OB:
+                        Clipboard.SetText(model.Target);
+                        break;
+                    case pinvoke.DRIVER_TYPE.FILESYSTEM:
+                        try
+                        {
+                            string Path = "C:" + model.Target;
+                            Process.Start("explorer.exe", "/select, " + Path);
+                        }
+                        catch (Exception ex)
+                        {
 
-                            }
-                            break;
-                        case pinvoke.DRIVER_TYPE.REGISTRY:
-                            Clipboard.SetText(model.Target);
-                            break;
-                    }
+                        }
+                        break;
+                    case pinvoke.DRIVER_TYPE.REGISTRY:
+                        Clipboard.SetText(model.Target);
+                        break;
                 }
             }
-            else if(dataGrid.Name == processGrid.Name)
+            else if(dataGrid.Name == "ProcessGrid")
             {
                 Model.ProcessModel p = (Model.ProcessModel)dataGrid.SelectedItem;
 
-                if (e.ChangedButton == MouseButton.Right)
-                {
-                    pinvoke.BringProcessToFront(p.PID);
-                }
+                pinvoke.BringProcessToFront(p.PID);
             }
         }
 
@@ -197,22 +393,66 @@ namespace ProcMon.ViewModel
             }
         }
 
+        CollectionViewSource DriverCollectionViewSource_DB { get; set; }
+        public ICollectionView DriverCollection_DB
+        {
+            get { return DriverCollectionViewSource_DB.View; }
+        }
+        ObservableCollection<Model.DBModel> _drivermodels_db = null;
+        public ObservableCollection<Model.DBModel> drivermodels_db
+        {
+            get
+            {
+                if (_drivermodels_db == null)
+                {
+                    _drivermodels_db = new ObservableCollection<Model.DBModel>();
+                }
+                return _drivermodels_db;
+            }
+            set
+            {
+                _drivermodels_db = value;
+            }
+        }
+
         public void FilterChanged(UInt32 PID, string ProcessName, bool IsFiltering)
         {
-            if (IsFiltering)
+            if (processlist_currentprocess == Visibility.Visible)
             {
-                if (!filterList.Contains((int)PID))
+                if (IsFiltering)
                 {
-                    filterList.Add((int)PID);
-                    OnFilterChange();
+                    if (!filterPIDList.Contains((int)PID))
+                    {
+                        filterPIDList.Add((int)PID);
+                        OnFilterChange();
+                    }
+                }
+                else
+                {
+                    if (filterPIDList.Contains((int)PID))
+                    {
+                        filterPIDList.Remove((int)PID);
+                        OnFilterChange();
+                    }
                 }
             }
             else
             {
-                if(filterList.Contains((int)PID))
+                if(IsFiltering)
                 {
-                    filterList.Remove((int)PID);
-                    OnFilterChange();
+                    if(!filterStringList.Contains(ProcessName))
+                    {
+                        filterStringList.Add(ProcessName);
+                        OnFilterChange();
+                    }
+                }
+                else
+                {
+                    if (filterStringList.Contains(ProcessName))
+                    {
+                        filterStringList.Remove(ProcessName);
+                        OnFilterChange();
+                    }
                 }
             }
         }
@@ -228,11 +468,18 @@ namespace ProcMon.ViewModel
             {
                 case 0:
                     p.fc += FilterChanged;
+                    lock (ListLock)
+                    {
+                        if (!TargetList.ContainsKey(p.PID))
+                            TargetList.Add(p.PID, new Dictionary<string, Model.DriverModel>());
+                    }
                     Application.Current.Dispatcher.Invoke(
                         new Action(() => processModels.Add(p)));
                     break;
                 case 1:
                     FilterChanged(p.PID, p.ProcessName, false);
+                    lock(ListLock)
+                        TargetList.Remove(p.PID);
                     Application.Current.Dispatcher.Invoke(
                         new Action(() => processModels.Remove(p)));
                     break;
@@ -244,14 +491,66 @@ namespace ProcMon.ViewModel
             Model.DriverModel driverModel = new Model.DriverModel();
             //bool UseData = true;
 
-            switch(Type)
+            db.InsertData(Type, dataStruct);
+
+            if(driverModels.Count > 500)
+                Application.Current.Dispatcher.Invoke(
+                    new Action(() => driverModels.RemoveAt(0)));
+
+            switch (Type)
             {
                 case pinvoke.DRIVER_TYPE.OB:
                     pinvoke.OBDATA ob = (pinvoke.OBDATA)dataStruct;
+
                     driverModel.date = new DateTime(ob.SystemTick);
                     driverModel.PID = (int)ob.PID;
-                    driverModel.Act = ob.Operation.ToString();
+                    driverModel.Act = string.Empty;
+                    try
+                    {
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_TERMINATE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_TERMINATE)
+                            driverModel.Act += "\nPROCESS_TERMINATE";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_THREAD) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_THREAD)
+                            driverModel.Act += "\nPROCESS_CREATE_THREAD";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_OPERATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_OPERATION)
+                            driverModel.Act += "\nPROCESS_VM_OPERATION";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_READ) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_READ)
+                            driverModel.Act += "\nPROCESS_VM_READ";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_WRITE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_WRITE)
+                            driverModel.Act += "\nPROCESS_VM_WRITE";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_DUP_HANDLE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_DUP_HANDLE)
+                            driverModel.Act += "\nPROCESS_DUP_HANDLE";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_PROCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_PROCESS)
+                            driverModel.Act += "\nPROCESS_CREATE_PROCESS";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_QUOTA) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_QUOTA)
+                            driverModel.Act += "\nPROCESS_SET_QUOTA";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_INFORMATION)
+                            driverModel.Act += "\nPROCESS_SET_INFORMATION";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_INFORMATION)
+                            driverModel.Act += "\nPROCESS_QUERY_INFORMATION";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SUSPEND_RESUME) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SUSPEND_RESUME)
+                            driverModel.Act += "\nPROCESS_SUSPEND_RESUME";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_LIMITED_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_LIMITED_INFORMATION)
+                            driverModel.Act += "\nPROCESS_QUERY_LIMITED_INFORMATION";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.SYNCHRONIZE) == (int)pinvoke.PROCESS_ACESS_MASK.SYNCHRONIZE)
+                            driverModel.Act += "\nSYNCHRONIZE";
+                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS)
+                            driverModel.Act += "\nPROCESS_ALL_ACCESS";
+                    }
+                    catch (Exception e)
+                    {
+
+                    }
+
+                    if (driverModel.Act == string.Empty)
+                        driverModel.Act = ob.DesiredAccess.ToString("X");
+                    else
+                        driverModel.Act = driverModel.Act.Trim('\n');
+
                     driverModel.Target = ob.TargetPID.ToString();
+                    try
+                    {
+                        driverModel.Target += " | " + Process.GetProcessById((int)ob.TargetPID).ProcessName;
+                    } catch(Exception e) { }
                     //driverModel.TargetPID = (int)ob.TargetPID;
                     //driverModel.Operation = (int)ob.Operation;
                     //driverModel.DesiredAccess = (int)ob.DesiredAccess;
@@ -265,107 +564,27 @@ namespace ProcMon.ViewModel
                     if (fs.PID == 0 || fs.PID == 4)
                         return;
 
-                    {
-                        //string ProcessName = Process.GetProcessById((int)fs.PID).ProcessName;
-
-                        //if(fs.PID == 4)
-                        //{
-                        //    try
-                        //    {
-                        //        //string targetName = fs.FileName.Split(',')[0];
-                        //        //if (targetName.ToLower().StartsWith("system")
-                        //        //    || targetName.StartsWith("dllhost")
-                        //        //    || targetName.ToLower().StartsWith("registry")
-                        //        //    || targetName.ToLower().StartsWith("textinputhost")
-                        //        //    || targetName.ToLower().StartsWith("svchost")
-                        //        //    || targetName.ToLower().StartsWith("microsoft")
-                        //        //    || targetName.ToLower().StartsWith("MoUsoCoreWorke")
-                        //        //    || targetName.ToLower().StartsWith("TrustedInstall")
-                        //        //    || targetName.ToLower().StartsWith("TiWorker")
-                        //        //    || targetName.ToLower().StartsWith("RuntimeBroker")
-                        //        //    || targetName.ToLower().StartsWith("conhost")
-                        //        //    || targetName.ToLower().StartsWith("WinSAT")
-                        //        //    || targetName.ToLower().StartsWith("rundll32")
-                        //        //    || targetName.ToLower().StartsWith("MoUsoCoreWorke")
-                        //        //    )
-                        //        //    return;
-                        //        //foreach (Model.ProcessModel p in processModels)
-                        //        //{
-                        //        //    if (p.ProcessName.StartsWith(targetName))
-                        //        //    {
-                        //        //        if (!rejectList.ContainsKey(p.PID))
-                        //        //            rejectList.Add(p.PID, new List<string>());
-                        //        //        if (!rejectList[p.PID].Contains(fs.FileName))
-                        //        //        {
-                        //        //            rejectList[p.PID].Add(fs.FileName);
-                        //        //        }
-
-                        //        //        return;
-                        //        //    }
-                        //        //}
-                        //    }
-                        //    catch(Exception e)
-                        //    {
-                        //        Console.WriteLine(e.ToString());
-                        //    }
-
-                        //    return;
-                        //}
-                        //else if(fs.Flag == 8)
-                        //{
-                        //    if (!rejectList.ContainsKey(fs.PID))
-                        //    {
-                        //        rejectList.Add(fs.PID, new List<string>());
-                        //        rejectList[fs.PID].Add("false");
-                        //        rejectList[fs.PID].Add(ProcessName);
-                        //    }
-                        //    if (!rejectList[fs.PID].Contains(fs.FileName))
-                        //    {
-                        //        rejectList[fs.PID].Add(fs.FileName);
-                        //    }
-                        //    return;
-                        //}
-                        //else
-                        //{
-                        //    if (!rejectList.ContainsKey(fs.PID))
-                        //    {
-                        //        rejectList.Add(fs.PID, new List<string>());
-                        //        rejectList[fs.PID].Add("false");
-                        //        rejectList[fs.PID].Add(ProcessName);
-                        //    }
-                        //    if (rejectList[fs.PID][0] == "false")
-                        //    {
-                        //        if (!rejectList[fs.PID].Contains(fs.FileName))
-                        //        {
-                        //            rejectList[fs.PID].Add(fs.FileName);
-                        //            var fnList = fs.FileName.Split('\\');
-                        //            if (fnList[fnList.Length - 1] == rejectList[fs.PID][1])
-                        //            {
-                        //                if (ProcessName == "ProcMonTest")
-                        //                    Console.WriteLine("Check - " + fs.FileName);
-
-                        //                rejectList[fs.PID][0] = "true";
-                        //            }
-                        //        }
-                        //        return;
-                        //    }
-                        //    if (rejectList.ContainsKey(fs.PID))
-                        //    {
-                        //        if (rejectList[fs.PID].Contains(fs.FileName))
-                        //        {
-                        //            if (ProcessName == "ProcMonTest")
-                        //                Console.WriteLine(fs.FileName);
-
-                        //            return;
-                        //        }
-                        //    }
-                        //}
-                    }
 
                     driverModel.date = new DateTime(fs.SystemTick);
                     driverModel.PID = (int)fs.PID;
                     driverModel.Act = fs.MajorFunction.ToString();
                     driverModel.Target = fs.FileName;
+
+                    //var sp = driverModel.Target.Split('.');
+                    //string extension = sp[sp.Length - 1].ToLower();
+                    //if (extension == "dll"
+                    //    || extension == "mun"
+                    //    || extension == "mui"
+                    //    || extension == "pf"
+                    //    || extension == "pri"
+                    //    || extension == "manifest"
+                    //    || extension == "nls"
+                    //    || extension == "dat"
+                    //    || extension == "clb"
+                    //    || extension == "odl"
+                    //    )
+                    //    return;
+
                     //driverModel.MajorFunction = (int)fs.MajorFunction;
                     //driverModel.FileName = fs.FileName;
                     break;
@@ -378,20 +597,42 @@ namespace ProcMon.ViewModel
                         driverModel.Target = reg.RegistryFullPath.Split('\\')[1];
                     else
                         driverModel.Target = reg.RegistryFullPath;
+                    driverModel.Target = driverModel.Target.Trim('\\');
                     //driverModel.NotifyClass = reg.NotifyClass;
                     //driverModel.RegistryFullPath = reg.RegistryFullPath;
                     break;
                 default:
                     return;
             }
-
+            driverModel.date = driverModel.date.ToLocalTime();
             driverModel.Type = Type;
 
-            //if (UseData)
+            lock (ListLock)
             {
-                Application.Current.Dispatcher.Invoke(
-                    new Action(() => driverModels.Add(driverModel))
-                );
+                if (!TargetList.ContainsKey(driverModel.PID))
+                {
+                    TargetList.Add(driverModel.PID, new Dictionary<string, Model.DriverModel>());
+                }
+
+                if (!TargetList[driverModel.PID].ContainsKey(driverModel.Target.ToLower()))
+                {
+                    TargetList[driverModel.PID].Add(driverModel.Target.ToLower(), driverModel);
+                    Application.Current.Dispatcher.Invoke(
+                        new Action(() => driverModels.Add(driverModel))
+                        );
+                }
+                else
+                {
+                    Model.DriverModel target = TargetList[driverModel.PID][driverModel.Target.ToLower()];
+                    if (driverModel.date > target.date)
+                    {
+                        target.Act = driverModel.Act;
+                        target.date = driverModel.date;
+                        //Application.Current.Dispatcher.Invoke(
+                        //    new Action(() => DriverCollectionViewSource.View.Refresh())
+                        //    );
+                    }
+                }
             }
         }
 
@@ -404,6 +645,29 @@ namespace ProcMon.ViewModel
             {
                 handler(this, new PropertyChangedEventArgs(name));
             }
+        }
+    }
+
+    public class CommandControl : ICommand
+    {
+        Action<object> ExecuteMethod;
+        Func<object, bool> CanExecuteMethod;
+        public event EventHandler CanExecuteChanged;
+
+        public CommandControl(Action<object> execute_method, Func<object, bool> canexecute_method)
+        {
+            this.ExecuteMethod = execute_method;
+            this.CanExecuteMethod = canexecute_method;
+        }
+
+        public bool CanExecute(object parameter)
+        {
+            return true;
+        }
+
+        public void Execute(object parameter)
+        {
+            ExecuteMethod(parameter);
         }
     }
 }
