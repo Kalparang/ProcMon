@@ -175,6 +175,7 @@ IPC_Init(
 	}
 
 	pThreadData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(POPThreadData), 'proc');
+	memset(pThreadData, 0, sizeof(POPThreadData));
 	pThreadData->Type = Type;
 	wcscpy(pThreadData->Prefix, Prefix);
 
@@ -193,7 +194,7 @@ POPDataThread(
 	PVOID ThreadContext
 )
 {
-	//PAGED_CODE();
+	PAGED_CODE();
 
 	NTSTATUS ntStatus = STATUS_OBJECT_NAME_NOT_FOUND;
 	pPOPThreadData pThreadData = ThreadContext;
@@ -206,6 +207,7 @@ POPDataThread(
 	LARGE_INTEGER interval;
 	PVOID tempData = NULL;
 	PBOOLEAN pTargetExit = NULL;
+	size_t maxLen;
 
 	interval.QuadPart = (1 * -10 * 1000 * 1000);
 
@@ -250,9 +252,18 @@ POPDataThread(
 
 	ExFreePool(pThreadData);
 
+	maxLen = max(sizeof(FSDATA), sizeof(REGDATA));
+	tempData = ExAllocatePool2(POOL_FLAG_PAGED, maxLen + 2, 'ipc');
+	if (tempData == NULL)
+	{
+		DbgPrint("Thread Init Fail\n");
+		*pTargetExit = FALSE;
+		return;
+	}
 
 	while (*pTargetExit)
 	{
+		memset(tempData, 0, maxLen);
 		KeAcquireGuardedMutex(pTargetMutex);
 
 		if (pTargetList[0] == NULL)
@@ -282,49 +293,30 @@ POPDataThread(
 			RtlCopyBytes(hSharedSection, pTargetList[0]->Data, sizeof(OBDATA));
 		break;
 		case 1:
-			tempData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(FSDATA), 'ipc');
-			if (tempData != NULL)
+			((PFSDATA)tempData)->MajorFunction = ((PFSDATA2)pTargetList[0]->Data)->MajorFunction;
+			((PFSDATA)tempData)->PID = ((PFSDATA2)pTargetList[0]->Data)->PID;
+			((PFSDATA)tempData)->SystemTick = ((PFSDATA2)pTargetList[0]->Data)->SystemTick;
+			((PFSDATA)tempData)->Flag = ((PFSDATA2)pTargetList[0]->Data)->Flag;
+			if (((PFSDATA2)pTargetList[0]->Data)->FileName != NULL)
 			{
-				((PFSDATA)tempData)->MajorFunction = ((PFSDATA2)pTargetList[0]->Data)->MajorFunction;
-				((PFSDATA)tempData)->PID = ((PFSDATA2)pTargetList[0]->Data)->PID;
-				((PFSDATA)tempData)->SystemTick = ((PFSDATA2)pTargetList[0]->Data)->SystemTick;
-				((PFSDATA)tempData)->Flag = ((PFSDATA2)pTargetList[0]->Data)->Flag;
-				if (((PFSDATA2)pTargetList[0]->Data)->FileName != NULL)
-				{
-					wcscpy(((PFSDATA)tempData)->FileName, ((PFSDATA2)pTargetList[0]->Data)->FileName);
-					ExFreePool(((PFSDATA2)pTargetList[0]->Data)->FileName);
-				}
-				RtlCopyBytes(hSharedSection, tempData, sizeof(FSDATA));
-				ExFreePool(tempData);
+				wcscpy(((PFSDATA)tempData)->FileName, ((PFSDATA2)pTargetList[0]->Data)->FileName);
+				ExFreePool(((PFSDATA2)pTargetList[0]->Data)->FileName);
 			}
-			else
-			{
-				if (((PFSDATA2)pTargetList[0]->Data)->FileName != NULL)
-					ExFreePool(((PFSDATA2)pTargetList[0]->Data)->FileName);
-			}
+			RtlCopyBytes(hSharedSection, tempData, sizeof(FSDATA));
 			break;
 		case 2:
-			tempData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA), 'ipc');
-			if (tempData != NULL)
+			((PREGDATA)tempData)->NotifyClass = ((PREGDATA2)pTargetList[0]->Data)->NotifyClass;
+			((PREGDATA)tempData)->PID = ((PREGDATA2)pTargetList[0]->Data)->PID;
+			((PREGDATA)tempData)->SystemTick = ((PREGDATA2)pTargetList[0]->Data)->SystemTick;
+			if (((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath != NULL)
 			{
-				((PREGDATA)tempData)->NotifyClass = ((PREGDATA2)pTargetList[0]->Data)->NotifyClass;
-				((PREGDATA)tempData)->PID = ((PREGDATA2)pTargetList[0]->Data)->PID;
-				((PREGDATA)tempData)->SystemTick = ((PREGDATA2)pTargetList[0]->Data)->SystemTick;
-				if (((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath != NULL)
-				{
-					wcscpy(((PREGDATA)tempData)->RegistryFullPath, ((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath);
-					ExFreePool(((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath);
-				}
-				RtlCopyBytes(hSharedSection, tempData, sizeof(REGDATA));
-				ExFreePool(tempData);
+				wcscpy(((PREGDATA)tempData)->RegistryFullPath, ((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath);
+				ExFreePool(((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath);
 			}
-			else
-			{
-				if (((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath != NULL)
-					ExFreePool(((PREGDATA2)pTargetList[0]->Data)->RegistryFullPath);
-			}
-		break;
+			RtlCopyBytes(hSharedSection, tempData, sizeof(REGDATA));
+			break;
 		default:
+			*pTargetExit = FALSE;
 			break;
 		}
 
@@ -342,6 +334,9 @@ POPDataThread(
 
 	ZwUnmapViewOfSection(NtCurrentProcess(), hSharedSection);
 	ZwClose(hSection);
+
+	if (tempData != NULL)
+		ExFreePool(tempData);
 
 	KeAcquireGuardedMutex(pTargetMutex);
 
@@ -430,12 +425,14 @@ DataInsertThread(
 		pTargetList[1] = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(LISTDATA), 'proc');
 		if (pTargetList[1] == NULL)
 			goto Exit;
+		memset(pTargetList[1], 0, sizeof(LISTDATA));
 	}
 	else
 	{
 		pTargetList[1]->NextData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(LISTDATA), 'proc');
 		if (pTargetList[1]->NextData == NULL)
 			goto Exit;
+		memset(pTargetList[1]->NextData, 0, sizeof(LISTDATA));
 
 		pTargetList[1] = pTargetList[1]->NextData;
 	}
@@ -519,6 +516,7 @@ CreateData(
 		ExFreePool(pData);
 		return;
 	}
+	memset(ComData, 0, sizeof(COMDATA));
 
 	ComData->Data = pData;
 	ComData->Type = Type;

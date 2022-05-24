@@ -47,21 +47,25 @@ NTSTATUS FsFilterDispatchCreate(
                 pFsData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(FSDATA2), 'fs');
                 if (pFsData != NULL)
                 {
+                    memset(pFsData, 0, sizeof(FSDATA2));
                     pFsData->MajorFunction = pStackLocation->MajorFunction;
                     pFsData->PID = PsGetCurrentProcessId();
                     pFsData->SystemTick = UTCTime.QuadPart;
                     pFsData->Flag = pStackLocation->Flags;
                     pFsData->FileName = NULL;
 
-                    if (pFileObject->FileName.Length > 0)
+                    if (pFileObject->FileName.Length > 0
+                        && pFileObject->FileName.Buffer != NULL)
                     {
                         len = 1;
                         len += pFileObject->FileName.Length;
                         len *= sizeof(WCHAR);
-
                         pFsData->FileName = ExAllocatePool2(POOL_FLAG_PAGED, len, 'fs');
                         if (pFsData->FileName != NULL)
-							wcsncpy(pFsData->FileName, pFileObject->FileName.Buffer, pFileObject->FileName.Length);
+                        {
+                            memset(pFsData->FileName, 0, len);
+                            RtlStringCbCopyUnicodeString(pFsData->FileName, len, &pFileObject->FileName);
+                        }
                         else
                             goto Exit;
                     }

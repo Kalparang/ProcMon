@@ -531,8 +531,10 @@ Return Value:
     PVOID RegistryObject = NULL;
     PUNICODE_STRING RegistryName = NULL;
     PWCH NotifyClassString = NULL;
+    PWCH tempCh = NULL;
     LARGE_INTEGER UTCTime;
     size_t len = 0;
+    size_t maxLen = 0;
     PREGDATA2 pRegData = NULL;
 
     KeQuerySystemTime(&UTCTime);
@@ -543,6 +545,7 @@ Return Value:
     NotifyClassString = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
     if (NotifyClassString == NULL)
         goto Exit;
+    memset(NotifyClassString, 0, len);
 
     wcscpy(NotifyClassString, GetNotifyClassString(NotifyClass));
     len = 0;
@@ -706,6 +709,7 @@ Return Value:
 	RegistryPath = ExAllocatePool2(POOL_FLAG_PAGED, nReturnBytes + sizeof(WCHAR), 'reg');
 	if (RegistryPath == NULL)
 		goto Exit;
+    memset(RegistryPath, 0, nReturnBytes + sizeof(WCHAR));
 
 	Status = ObQueryNameString(RegistryObject,
 		RegistryPath,
@@ -720,36 +724,38 @@ Return Value:
 		pRegData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(REGDATA2), 'reg');
 		if (pRegData == NULL)
 			goto Exit;
-		else
+        memset(pRegData, 0, sizeof(REGDATA2));
+		pRegData->NotifyClass = NotifyClass;
+		pRegData->PID = PsGetCurrentProcessId();
+		pRegData->RegistryFullPath = NULL;
+		pRegData->SystemTick = UTCTime.QuadPart;
+
+		len += 2;
+		len += RegistryPath->Name.Length;
+		len += RegistryName->Length;
+		len *= sizeof(WCHAR);
+
+		if (RegistryPath->Name.Length > 0 || RegistryName->Length > 0)
 		{
-			pRegData->NotifyClass = NotifyClass;
-			pRegData->PID = PsGetCurrentProcessId();
-			pRegData->RegistryFullPath = NULL;
-			pRegData->SystemTick = UTCTime.QuadPart;
-
-			len += 2;
-			len += RegistryPath->Name.Length;
-            len += RegistryName->Length;
-			len *= sizeof(WCHAR);
-
-			if (RegistryPath->Name.Length > 0 || RegistryName->Length > 0)
-			{
-				pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
-				if (pRegData->RegistryFullPath == NULL)
-					goto Exit;
-				else
-				{
-					if (RegistryPath->Name.Length > 0)
-						wcsncat(pRegData->RegistryFullPath, RegistryPath->Name.Buffer, RegistryPath->Name.Length);
-					wcscat(pRegData->RegistryFullPath, L"\\");
-					if (RegistryName->Length > 0)
-						wcsncat(pRegData->RegistryFullPath, RegistryName->Buffer, RegistryName->Length);
-				}
-			}
-
-			if (pRegData != NULL)
-				CreateData(pRegData, 2);
+			pRegData->RegistryFullPath = ExAllocatePool2(POOL_FLAG_PAGED, len, 'reg');
+			if (pRegData->RegistryFullPath == NULL)
+				goto Exit;
+			memset(pRegData->RegistryFullPath, 0, len);
+			maxLen = max(RegistryPath->Name.Length, RegistryName->Length) + 1;
+			maxLen *= sizeof(WCHAR);
+			tempCh = ExAllocatePool2(POOL_FLAG_PAGED, maxLen, 'reg');
+			if (tempCh == NULL)
+				goto Exit;
+			memset(tempCh, 0, maxLen);
+			RtlStringCbCopyUnicodeString(tempCh, maxLen, &RegistryPath->Name);
+			RtlStringCchCatW(pRegData->RegistryFullPath, len, tempCh);
+			RtlStringCchCatW(pRegData->RegistryFullPath, len, L"\\");
+			RtlStringCbCopyUnicodeString(tempCh, maxLen, &RegistryName->Buffer);
+			RtlStringCchCatW(pRegData->RegistryFullPath, len, tempCh);
 		}
+
+		if (pRegData != NULL)
+			CreateData(pRegData, 2);
 	}
 
 Exit:
@@ -765,6 +771,7 @@ Exit:
         }
     }
 
+    if (tempCh != NULL) ExFreePool(tempCh);
     if (NotifyClassString != NULL) ExFreePool(NotifyClassString);
     if (RegistryPath != NULL) ExFreePool(RegistryPath);
 }

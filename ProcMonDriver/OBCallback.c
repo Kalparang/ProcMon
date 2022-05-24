@@ -253,6 +253,7 @@ CBTdPreOperationCallback(
         obData = ExAllocatePool2(POOL_FLAG_PAGED, sizeof(OBDATA), 'ob');
         if (obData == NULL)
             goto Exit;
+        memset(obData, 0, sizeof(OBDATA));
 
         obData->SystemTick = UTCTime.QuadPart;
         obData->PID = PsGetCurrentProcessId();
