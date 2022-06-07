@@ -51,7 +51,8 @@ NTSTATUS FsFilterDispatchCreate(
                     pFsData->MajorFunction = pStackLocation->MajorFunction;
                     pFsData->PID = PsGetCurrentProcessId();
                     pFsData->SystemTick = UTCTime.QuadPart;
-                    pFsData->Flag = pStackLocation->Flags;
+                    pFsData->DeletePending = pFileObject->DeletePending;
+                    pFsData->DeleteAccess = pFileObject->DeleteAccess;
                     pFsData->FileName = NULL;
 
                     if (pFileObject->FileName.Length > 0
