@@ -22,59 +22,17 @@ namespace ProcMon
     /// </summary>
     public partial class MainWindow : Window
     {
-        ViewModel.MainViewModel mv;
         public MainWindow()
         {
             InitializeComponent();
             Win32.AllocConsole();
-            //mv = new ViewModel.MainViewModel();
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        }
 
-            //DataContext = mv;
-            //uiGrid.ItemsSource = mv.DriverCollection;
-            //ProcessGrid.ItemsSource = mv.ProcessCollection;
-            //ProcessGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
-            //uiGrid.MouseRightButtonDown += mv.ProcessGrid_MouseRightButtonDown;
-            //mv.uiGrid = uiGrid;
-            //mv.processGrid = ProcessGrid;
-
-            //int result;
-            //result = DriverManage.CreateDriverServices();
-            //if(result != 0)
-            //{
-            //    Console.WriteLine("CreateDriverServices : " + result);
-            //    return;
-            //}
-
-            //for (int i = 0; i < 3; i++)
-            //{
-            //    new IPC().Init(i);
-
-            //    result = DriverManage.StartService(i);
-            //    if (result != 0)
-            //    {
-            //        Console.WriteLine("StartService : " + result);
-            //        return;
-            //    }
-            //}
-
-            //for (int i = 0; i < 3; i++)
-            //{
-            //    var bresult = DriverManage.StopService(i);
-            //    if (bresult == false)
-            //    {
-            //        Console.WriteLine("StopService : " + bresult);
-            //        return;
-            //    }
-            //}
-
-            //result = DriverManage.DeleteServices();
-            //if (result != 0)
-            //{
-            //    Console.WriteLine("CreateDriverServices : " + result);
-            //    return;
-            //}
-
-            Console.WriteLine("end");
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Console.WriteLine(e.ExceptionObject.ToString());
+            Environment.Exit(0);
         }
 
         public class Win32
@@ -83,11 +41,6 @@ namespace ProcMon
             public static extern Boolean AllocConsole();
             [DllImport("kernel32.dll")]
             public static extern Boolean FreeConsole();
-        }
-
-        private void ProcessGrid_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-
         }
     }
 }

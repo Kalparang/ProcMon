@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using System.Data.SQLite;
 using System.Diagnostics;
 using System.Management;
+using System.Threading;
+using System.Windows;
 
 namespace ProcMon
 {
@@ -15,13 +17,15 @@ namespace ProcMon
         SQLiteConnection connection;
         Dictionary<int, List<WaitData>> WaitDatas;
         List<SQLiteCommand> insertList;
+        List<Thread> threads;
+        ManualResetEvent exitEvent;
+        
         object lockObject;
 
         public DBManage()
         {
-            string currentPath = Path.GetDirectoryName(Environment.CurrentDirectory);
-            if (currentPath == null) currentPath = @"C:\proc";
-            string sqlFilePath = Path.Combine(currentPath, "ProcMon.sqlite");
+            exitEvent = new ManualResetEvent(false);
+            string sqlFilePath = Path.Combine(Directory.GetCurrentDirectory(), "ProcMon.sqlite");
             string connectionString = $"Data Source={sqlFilePath}";
             WaitDatas = new Dictionary<int, List<WaitData>>();
             insertList = new List<SQLiteCommand>();
@@ -31,13 +35,45 @@ namespace ProcMon
             connection.Open();
 
             CreateTable();
-            new System.Threading.Thread(new System.Threading.ThreadStart(InsertThread)).Start();
+            threads = new List<Thread>();
+            threads.Add(new Thread(new ThreadStart(InsertData)));
+            threads.Add(new Thread(new ThreadStart(InsertThread)));
+
+            foreach (Thread t in threads)
+                t.Start();
+        }
+
+        public void Exit()
+        {
+            Console.WriteLine("~DBManage");
+            exitEvent.Set();
+            foreach (Thread t in threads)
+                if (t.Join(1500) == false) t.Abort();
+            connection.Close();
+            connection.Dispose();
+            Console.WriteLine("~DBManage Exit");
+        }
+
+        class dataQueue
+        {
+            public pinvoke.DRIVER_TYPE type;
+            public object data;
+            public string ProcessName = null;
+            public string ProcessName2 = null;
+        }
+
+        List<dataQueue> dataList = new List<dataQueue>();
+
+        public void insertQueue(pinvoke.DRIVER_TYPE type, object data, string ProcessName = null, string ProcessName2 = null)
+        {
+            dataList.Add(new dataQueue() { type = type, data = data, ProcessName = ProcessName, ProcessName2 = ProcessName2 });
         }
 
         void InsertThread()
         {
             while (true)
             {
+                if (exitEvent.WaitOne(3000)) break;
                 SQLiteCommand[] insertArrary;
                 lock (lockObject)
                 {
@@ -54,135 +90,134 @@ namespace ProcMon
                     }
                     transaction.Commit();
                 }
-
-                System.Threading.Thread.Sleep(1000);
             }
+            Console.WriteLine("InsertThread Thread Exit");
         }
 
-        public void InsertData(pinvoke.DRIVER_TYPE type, object data, string ProcessName = null, string ProcessName2 = null)
+        //public void InsertData(pinvoke.DRIVER_TYPE type, object data, string ProcessName = null, string ProcessName2 = null)
+        public void InsertData()
         {
-            SQLiteCommand processinsertCommand = new SQLiteCommand();
-            SQLiteCommand insertCommand = new SQLiteCommand();
-
-            processinsertCommand.Connection = connection;
-            processinsertCommand.CommandText = "insert or ignore into processes(process) values(@process)";
-            processinsertCommand.Parameters.Add("@process", System.Data.DbType.String, 50);
-
-            insertCommand.Connection = connection;
-            insertCommand.CommandText = "insert into ";
-            int WaitPID = 0;
-
-            try
+            while(true)
             {
-                switch (type)
+                if (exitEvent.WaitOne(0)) break;
+
+                if(dataList.Count == 0)
                 {
-                    case pinvoke.DRIVER_TYPE.OB:
-                        pinvoke.OBDATA ob = (pinvoke.OBDATA)data;
-                        insertCommand.CommandText += "targetprocesses(process, targetprocess, systemtick, desiredaccess) values ($process, $targetprocess, $systemtick, $desiredaccess)";
-                        WaitPID = (int)ob.PID;
-                        if (ProcessName != null)
-                            insertCommand.Parameters.AddWithValue("$process", ProcessName);
-                        else
-                            insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)ob.PID).ProcessName);
-                        WaitPID = (int)ob.TargetPID;
-                        if (ProcessName2 != null)
-                            insertCommand.Parameters.AddWithValue("$targetprocess", ProcessName2);
-                        else
-                            insertCommand.Parameters.AddWithValue("$targetprocess", Process.GetProcessById((int)ob.TargetPID).ProcessName);
-                        insertCommand.Parameters.AddWithValue("$systemtick", new DateTime(ob.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff"));
-                        insertCommand.Parameters.AddWithValue("$desiredaccess", ob.DesiredAccess);
-
-                        //insertCommand.Parameters.Add("$process", System.Data.DbType.String, 50);
-                        //insertCommand.Parameters.Add("$targetprocess", System.Data.DbType.String, 50);
-                        //insertCommand.Parameters.Add("$systemtick", System.Data.DbType.DateTime);
-                        //insertCommand.Parameters.Add("$desiredaccess", System.Data.DbType.UInt32);
-                        //WaitPID = (int)ob.PID;
-                        //insertCommand.Parameters[0].Value = Process.GetProcessById((int)ob.PID).ProcessName;
-                        //WaitPID = (int)ob.TargetPID;
-                        //insertCommand.Parameters[1].Value = Process.GetProcessById((int)ob.TargetPID).ProcessName;
-                        //insertCommand.Parameters[2].Value = new DateTime(ob.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff");
-                        //insertCommand.Parameters[3].Value = ob.DesiredAccess;
-                        break;
-                    case pinvoke.DRIVER_TYPE.FILESYSTEM:
-                        pinvoke.FSDATA fs = (pinvoke.FSDATA)data;
-                        WaitPID = (int)fs.PID;
-                        insertCommand.CommandText += "targetfiles(process, filename, systemtick, majorfunction) values ($process, $filename, $systemtick, $majorfunction)";
-                        if (ProcessName != null)
-                            insertCommand.Parameters.AddWithValue("$process", ProcessName);
-                        else
-                            insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)fs.PID).ProcessName);
-                        insertCommand.Parameters.AddWithValue("$filename", fs.FileName);
-                        insertCommand.Parameters.AddWithValue("$systemtick", new DateTime(fs.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff"));
-                        insertCommand.Parameters.AddWithValue("$majorfunction", fs.MajorFunction);
-
-                        //insertCommand.Parameters.Add("$process", System.Data.DbType.String, 50);
-                        //insertCommand.Parameters.Add("$filename", System.Data.DbType.String, 32767);
-                        //insertCommand.Parameters.Add("$systemtick", System.Data.DbType.DateTime);
-                        //insertCommand.Parameters.Add("$majorfunciton", System.Data.DbType.UInt32);
-                        //insertCommand.Parameters[0].Value = Process.GetProcessById((int)fs.PID).ProcessName;
-                        //insertCommand.Parameters[1].Value = fs.FileName;
-                        //insertCommand.Parameters[2].Value = new DateTime(fs.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff");
-                        //insertCommand.Parameters[3].Value = fs.MajorFunction;
-                        break;
-                    case pinvoke.DRIVER_TYPE.REGISTRY:
-                        pinvoke.REGDATA reg = (pinvoke.REGDATA)data;
-                        WaitPID = (int)reg.PID;
-                        insertCommand.CommandText += "targetregistries(process, registryfullpath, systemtick, notifyclass) values ($process, $registryfullpath, $systemtick, $notifyclass)";
-                        if (ProcessName != null)
-                            insertCommand.Parameters.AddWithValue("$process", ProcessName);
-                        else
-                            insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)reg.PID).ProcessName);
-                        insertCommand.Parameters.AddWithValue("$registryfullpath", reg.RegistryFullPath);
-                        insertCommand.Parameters.AddWithValue("$systemtick", new DateTime(reg.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff"));
-                        insertCommand.Parameters.AddWithValue("$notifyclass", reg.NotifyClass);
-
-                        //insertCommand.Parameters.Add("$process", System.Data.DbType.String, 50);
-                        //insertCommand.Parameters.Add("$registryfullpath", System.Data.DbType.String, 32767);
-                        //insertCommand.Parameters.Add("$systemtick", System.Data.DbType.DateTime);
-                        //insertCommand.Parameters.Add("$notifyclass", System.Data.DbType.UInt32);
-                        //insertCommand.Parameters[0].Value = Process.GetProcessById((int)reg.PID).ProcessName;
-                        //insertCommand.Parameters[1].Value = reg.RegistryFullPath;
-                        //insertCommand.Parameters[2].Value = new DateTime(reg.SystemTick).ToString("yyyy-MM-dd HH:mm:ss.fff");
-                        //insertCommand.Parameters[3].Value = reg.NotifyClass;
-                        break;
-                    default:
-                        return;
+                    System.Threading.Thread.Sleep(500);
+                    continue;
                 }
-            }
-            catch (ArgumentException ae)
-            {
-                processinsertCommand.Dispose();
-                insertCommand.Dispose();
+
+                dataQueue dq = dataList[0];
+                if(dq == null)
+                {
+                    dataList.RemoveAt(0);
+                    continue;
+                }
+                pinvoke.DRIVER_TYPE type = dq.type;
+                object data = dq.data;
+                string ProcessName = dq.ProcessName;
+                string ProcessName2 = dq.ProcessName2;
+                DateTime dataDate = DateTime.Now;
+
+                dataList.RemoveAt(0);
+
+                SQLiteCommand processinsertCommand = new SQLiteCommand();
+                SQLiteCommand insertCommand = new SQLiteCommand();
+
+                processinsertCommand.Connection = connection;
+                processinsertCommand.CommandText = "insert or ignore into processes(process) values(@process)";
+                processinsertCommand.Parameters.Add("@process", System.Data.DbType.String, 50);
+
+                insertCommand.Connection = connection;
+                insertCommand.CommandText = "insert into ";
+                int WaitPID = 0;
+
+                try
+                {
+                    switch (type)
+                    {
+                        case pinvoke.DRIVER_TYPE.OB:
+                            pinvoke.OBDATA ob = (pinvoke.OBDATA)data;
+                            insertCommand.CommandText += "targetprocesses(process, targetprocess, systemtick, desiredaccess) values ($process, $targetprocess, $systemtick, $desiredaccess)";
+                            WaitPID = (int)ob.PID;
+                            if (ProcessName != null)
+                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            else
+                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)ob.PID).ProcessName);
+                            WaitPID = (int)ob.TargetPID;
+                            if (ProcessName2 != null)
+                                insertCommand.Parameters.AddWithValue("$targetprocess", ProcessName2);
+                            else
+                                insertCommand.Parameters.AddWithValue("$targetprocess", Process.GetProcessById((int)ob.TargetPID).ProcessName);
+                            dataDate = new DateTime(ob.SystemTick);
+                            insertCommand.Parameters.AddWithValue("$desiredaccess", ob.DesiredAccess);
+                            break;
+                        case pinvoke.DRIVER_TYPE.FILESYSTEM:
+                            pinvoke.FSDATA fs = (pinvoke.FSDATA)data;
+                            WaitPID = (int)fs.PID;
+                            insertCommand.CommandText += "targetfiles(process, filename, systemtick, majorfunction) values ($process, $filename, $systemtick, $majorfunction)";
+                            if (ProcessName != null)
+                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            else
+                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)fs.PID).ProcessName);
+                            insertCommand.Parameters.AddWithValue("$filename", "C:" + fs.FileName);
+                            dataDate = new DateTime(fs.SystemTick);
+                            insertCommand.Parameters.AddWithValue("$majorfunction", fs.MajorFunction);
+                            break;
+                        case pinvoke.DRIVER_TYPE.REGISTRY:
+                            pinvoke.REGDATA reg = (pinvoke.REGDATA)data;
+                            WaitPID = (int)reg.PID;
+                            insertCommand.CommandText += "targetregistries(process, registryfullpath, systemtick, notifyclass) values ($process, $registryfullpath, $systemtick, $notifyclass)";
+                            if (ProcessName != null)
+                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            else
+                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)reg.PID).ProcessName);
+                            insertCommand.Parameters.AddWithValue("$registryfullpath", reg.RegistryFullPath);
+                            dataDate = new DateTime(reg.SystemTick);
+                            insertCommand.Parameters.AddWithValue("$notifyclass", reg.NotifyClass);
+                            break;
+                        default:
+                            continue;
+                    }
+                }
+                catch (ArgumentException ae)
+                {
+                    processinsertCommand.Dispose();
+                    insertCommand.Dispose();
+
+                    //lock (lockObject)
+                    //{
+                    //    if (!WaitDatas.ContainsKey(WaitPID))
+                    //        WaitDatas.Add(WaitPID, new List<WaitData>());
+                    //    WaitDatas[WaitPID].Add(new WaitData(type, data));
+                    //}
+                    continue;
+                }
+                catch (InvalidOperationException ie)
+                {
+                    processinsertCommand.Dispose();
+                    insertCommand.Dispose();
+
+                    //lock (lockObject)
+                    //{
+                    //    if (!WaitDatas.ContainsKey(WaitPID))
+                    //        WaitDatas.Add(WaitPID, new List<WaitData>());
+                    //    WaitDatas[WaitPID].Add(new WaitData(type, data));
+                    //}
+                    continue;
+                }
+
+                insertCommand.Parameters.AddWithValue("$systemtick", dataDate.AddYears(1600).ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                processinsertCommand.Parameters[0].Value = insertCommand.Parameters[0].Value;
 
                 lock (lockObject)
                 {
-                    if (!WaitDatas.ContainsKey(WaitPID))
-                        WaitDatas.Add(WaitPID, new List<WaitData>());
-                    WaitDatas[WaitPID].Add(new WaitData(type, data));
+                    insertList.Add(processinsertCommand);
+                    insertList.Add(insertCommand);
                 }
-                return;
-            }
-            catch (InvalidOperationException ie)
-            {
-                processinsertCommand.Dispose();
-                insertCommand.Dispose();
-
-                lock (lockObject)
-                {
-                    if (!WaitDatas.ContainsKey(WaitPID))
-                        WaitDatas.Add(WaitPID, new List<WaitData>());
-                    WaitDatas[WaitPID].Add(new WaitData(type, data));
-                }
-                return;
             }
 
-            processinsertCommand.Parameters[0].Value = insertCommand.Parameters[0].Value;
-
-            lock (lockObject)
-            {
-                insertList.Add(processinsertCommand);
-                insertList.Add(insertCommand);
-            }
+            Console.WriteLine("InsertData Thread Exit");
         }
 
         public List<Model.ProcessModel> ReadProcesses()
@@ -207,12 +242,19 @@ namespace ProcMon
             return result;
         }
 
-        public List<Model.DBModel> ReadItems()
+        public List<Model.DBModel> ReadItems(string ProcessName = "")
         {
             List<Model.DBModel> result = new List<Model.DBModel>();
             string obsql = "select * from targetprocesses";
             string fssql = "select * from targetfiles";
             string regsql = "select * from targetregistries";
+
+            if(!string.IsNullOrWhiteSpace(ProcessName))
+            {
+                obsql += $" where process = '{ProcessName}'";
+                fssql += $" where process = '{ProcessName}'";
+                regsql += $" where process = '{ProcessName}'";
+            }
 
             using (SQLiteCommand command = new SQLiteCommand(obsql, connection))
             {
@@ -223,7 +265,28 @@ namespace ProcMon
                     Model.DBModel item = new Model.DBModel();
                     item.date = (DateTime)reader["systemtick"];
                     item.Process = (string)reader["process"];
-                    item.Act = ((pinvoke.ACCESS_MASK)Convert.ToUInt32(reader["desiredaccess"])).ToString();
+                    item.Act = string.Empty;
+                    int DesiredAccess = Convert.ToInt32(reader["desiredaccess"]);
+                    try
+                    {
+                        if ((DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS)
+                            item.Act = pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS.ToString();
+                        else
+                            foreach (pinvoke.PROCESS_ACESS_MASK mask in Enum.GetValues(typeof(pinvoke.PROCESS_ACESS_MASK)))
+                            {
+                                if ((DesiredAccess & (int)mask) == (int)mask)
+                                    item.Act += $"\n{mask.ToString()}";
+                            }
+                    }
+                    catch (Exception e)
+                    {
+
+                    }
+                    if (item.Act == string.Empty)
+                        item.Act = DesiredAccess.ToString("X");
+                    else
+                        item.Act = item.Act.Trim('\n');
+
                     item.Target = (string)reader["targetprocess"];
                     item.Type = pinvoke.DRIVER_TYPE.OB;
                     result.Add(item);
@@ -256,7 +319,12 @@ namespace ProcMon
                     item.date = (DateTime)reader["systemtick"];
                     item.Process = (string)reader["process"];
                     item.Act = ((pinvoke.REG_NOTIFY_CLASS)Convert.ToUInt32(reader["notifyclass"])).ToString();
-                    item.Target = (string)reader["registryfullpath"];
+                    string RegistryFullPath = (string)reader["registryfullpath"];
+                    if (RegistryFullPath.Contains("\\\\"))
+                        item.Target = RegistryFullPath.Split('\\')[1];
+                    else
+                        item.Target = RegistryFullPath;
+                    item.Target = item.Target.Trim('\\');
                     item.Type = pinvoke.DRIVER_TYPE.REGISTRY;
                     result.Add(item);
                 }
@@ -290,7 +358,7 @@ namespace ProcMon
                     else
                         ProcessName1 = ProcessName;
 
-                    InsertData(data.type, data.data, ProcessName1, ProcessName2);
+                    //InsertData(data.type, data.data, ProcessName1, ProcessName2);
                 }
 
                 WaitDatas.Remove(PID);

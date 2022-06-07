@@ -189,12 +189,15 @@ namespace ProcMon
         public event ReceiveData rd;
         List<string> reject2;
         Dictionary<long, List<string>> reject;
+        ManualResetEvent exitEvent;
+        Thread IPCThread;
 
         public void Init(pinvoke.DRIVER_TYPE Type)
         {
             this.Type = Type;
             reject = new Dictionary<long, List<string>>();
             reject2 = new List<string>();
+            exitEvent = new ManualResetEvent(false);
 
             CreateDriverEvent();
 
@@ -212,7 +215,17 @@ namespace ProcMon
                 return;
             }
 
-            new Thread(new ThreadStart(test)).Start();
+            IPCThread = new Thread(new ThreadStart(test));
+            IPCThread.Start();
+        }
+
+        public void Exit()
+        {
+            Console.WriteLine("~IPC");
+            exitEvent.Set();
+            if (IPCThread.Join(1500) == false)
+                IPCThread.Abort();
+            mm.Dispose();
         }
 
         MemoryMappedFile CreateSharedMemory()
@@ -242,7 +255,7 @@ namespace ProcMon
             }
             mapName += "SharedMemory";
 
-            mm = MemoryMappedFile.CreateNew(mapName, capacity, MemoryMappedFileAccess.ReadWrite);
+            mm = MemoryMappedFile.CreateOrOpen(mapName, capacity, MemoryMappedFileAccess.ReadWrite);
 
             return mm;
         }
@@ -272,8 +285,6 @@ namespace ProcMon
 
         void test()
         {
-            Console.WriteLine("Thread start");
-
             byte[] data = new byte[capacity];
             IntPtr p = Marshal.AllocHGlobal((int)capacity);
             //bool Use = true;
@@ -281,7 +292,7 @@ namespace ProcMon
 
             using (var accessor = mm.CreateViewAccessor())
             {
-                while (true)
+                while (exitEvent.WaitOne(0) == false)
                 {
                     userEvent.WaitOne();
 
@@ -296,34 +307,6 @@ namespace ProcMon
                             break;
                         case pinvoke.DRIVER_TYPE.FILESYSTEM:
                             targetData = (pinvoke.FSDATA)Marshal.PtrToStructure(p, typeof(pinvoke.FSDATA));
-                            //pinvoke.FSDATA fs = (pinvoke.FSDATA)targetData;
-                            ////if (!reject.ContainsKey(fs.PID))
-                            ////    reject.Add(fs.PID, new List<string>());
-                            //if (fs.Flag == 8)
-                            //{
-                            //    //Console.WriteLine(fs.PID + " : " + fs.FileName);
-                            //    //if (!reject[fs.PID].Contains(fs.FileName))
-                            //    //    reject[fs.PID].Add(fs.FileName);
-                            //    bool check = reject2.Contains(fs.FileName);
-                            //    Console.WriteLine(fs.FileName + " | " + check);
-
-                            //    if (!check)
-                            //    {
-                            //        reject2.Add(fs.FileName);
-                            //        Console.WriteLine(check);
-                            //    }
-                            //    Use = false;
-                            //}
-                            //else
-                            //{
-                            //    //if (reject[fs.PID].Contains(fs.FileName))
-                            //    //    Use = false;
-
-                            //    if (reject2.Contains(fs.FileName))
-                            //        Use = false;
-                            //}
-                            //if (fs.PID == 0 || fs.PID == 4)
-                            //    Use = false;
                             break;
                         case pinvoke.DRIVER_TYPE.REGISTRY:
                             targetData = (pinvoke.REGDATA)Marshal.PtrToStructure(p, typeof(pinvoke.REGDATA));
@@ -344,20 +327,29 @@ namespace ProcMon
     {
         public delegate void ReceiveEvent(int Type, EventArrivedEventArgs e);
         public event ReceiveEvent re;
+        ManagementEventWatcher startWatch;
+        ManagementEventWatcher stopWatch;
 
         public ProcessWatch()
         {
-            ManagementEventWatcher startWatch = new ManagementEventWatcher(
+            startWatch = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace"));
             startWatch.EventArrived
                                 += new EventArrivedEventHandler(startWatch_EventArrived);
             startWatch.Start();
 
-            ManagementEventWatcher stopWatch = new ManagementEventWatcher(
+            stopWatch = new ManagementEventWatcher(
                 new WqlEventQuery("SELECT * FROM Win32_ProcessStopTrace"));
             stopWatch.EventArrived
                                 += new EventArrivedEventHandler(stopWatch_EventArrived);
             stopWatch.Start();
+        }
+        public void Stop()
+        {
+            startWatch.Stop();
+            startWatch.Dispose();
+            stopWatch.Stop();
+            stopWatch.Dispose();
         }
 
         void startWatch_EventArrived(object sender, EventArrivedEventArgs e)

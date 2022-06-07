@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +20,12 @@ namespace ProcMon.ViewModel
     {
         Dictionary<long, Dictionary<string, Model.DriverModel>> TargetList;
         DBManage db;
+        List<Thread> threads;
+        List<IPC> iPCs;
+        ProcessWatch processWatch;
+        ManualResetEvent exitEvent;
+        pinvoke.DRIVER_TYPE FilterProcessType = pinvoke.DRIVER_TYPE.LAST;
+        pinvoke.DRIVER_TYPE FilterDBType = pinvoke.DRIVER_TYPE.LAST;
 
         public CommandControl btn_cmd { get; set; }
         object ListLock;
@@ -54,6 +61,7 @@ namespace ProcMon.ViewModel
                         p.fc += FilterChanged;
                         processModels_DB.Add(p);
                     }
+                    DriverCollectionViewSource_DB.View.Refresh();
                 }
                 else
                     processModels_DB.Clear();
@@ -86,11 +94,11 @@ namespace ProcMon.ViewModel
                 _itemlist_db = value;
                 if (itemlist_db == Visibility.Visible)
                 {
-                    var items = db.ReadItems();
-                    foreach (var item in items)
-                    {
-                        drivermodels_db.Add(item);
-                    }
+                    //var items = db.ReadItems();
+                    //foreach (var item in items)
+                    //{
+                    //    drivermodels_db.Add(item);
+                    //}
                 }
                 else
                     drivermodels_db.Clear();
@@ -102,6 +110,9 @@ namespace ProcMon.ViewModel
 
         public MainViewModel()
         {
+            Application.Current.Exit += Current_Exit;
+            exitEvent = new ManualResetEvent(false);
+
             DriverCollectionViewSource = new CollectionViewSource();
             DriverCollectionViewSource.Source = this.driverModels;
             DriverCollectionViewSource.Filter += ApplyFilter;
@@ -137,25 +148,19 @@ namespace ProcMon.ViewModel
                 return;
             }
 
-            Console.WriteLine("CreateService Success");
-
-            //IPC iPC = new IPC();
-            //iPC.rd += AddData;
-            //iPC.Init(pinvoke.DRIVER_TYPE.REGISTRY);
-
-            //DriverManage.StartService(pinvoke.DRIVER_TYPE.REGISTRY);
-
+            iPCs = new List<IPC>();
             for (pinvoke.DRIVER_TYPE i = 0; i < pinvoke.DRIVER_TYPE.LAST; i++)
             {
                 IPC iPC = new IPC();
                 iPC.rd += AddData;
                 iPC.Init(i);
+                iPCs.Add(iPC);
 
                 DriverManage.StartService(i);
             }
 
             var process = Process.GetProcesses();
-            foreach(var p in process)
+            foreach (var p in process)
             {
                 var d = new Model.ProcessModel();
                 d.PID = (UInt32)p.Id;
@@ -164,9 +169,29 @@ namespace ProcMon.ViewModel
                 processModels.Add(d);
             }
 
-            var pw = new ProcessWatch();
-            pw.re += ProcessEvent;
-            pw.re += db.ProcessEvent;
+            processWatch = new ProcessWatch();
+            processWatch.re += ProcessEvent;
+            processWatch.re += db.ProcessEvent;
+
+            threads = new List<Thread>();
+            threads.Add(new Thread(new ThreadStart(AddDataThread)));
+            foreach (Thread t in threads)
+                t.Start();
+        }
+
+        private void Current_Exit(object sender, ExitEventArgs e)
+        {
+            exitEvent.Set();
+            db.Exit();
+            for (pinvoke.DRIVER_TYPE i = 0; i < pinvoke.DRIVER_TYPE.LAST; i++)
+                DriverManage.StopService(i);
+            DriverManage.DeleteServices();
+            foreach (IPC iPC in iPCs)
+                iPC.Exit();
+            processWatch.Stop();
+            foreach (Thread t in threads)
+                if (t.Join(1500) == false) t.Abort();
+            Console.WriteLine("Current_Exit");
         }
 
         private void ApplyFilter(object sender, FilterEventArgs e)
@@ -178,6 +203,15 @@ namespace ProcMon.ViewModel
 
             if(currentprocess != null)
             {
+                if(FilterProcessType != pinvoke.DRIVER_TYPE.LAST)
+                {
+                    if(currentprocess.Type != FilterProcessType)
+                    {
+                        e.Accepted = false;
+                        return;
+                    }
+                }
+
                 if (filterPIDList.Count > 0
                     && !string.IsNullOrWhiteSpace(filterString))
                 {
@@ -187,12 +221,21 @@ namespace ProcMon.ViewModel
                 else if (filterPIDList.Count > 0)
                     e.Accepted = filterPIDList.Contains(currentprocess.PID);
                 else if (!string.IsNullOrWhiteSpace(filterString))
-                    currentprocess.Target.ToLower().Contains(filterString.ToLower());
+                    e.Accepted = currentprocess.Target.ToLower().Contains(filterString.ToLower());
                 else
                     e.Accepted = true;
             }
             if(db != null)
             {
+                if (FilterDBType != pinvoke.DRIVER_TYPE.LAST)
+                {
+                    if (db.Type != FilterDBType)
+                    {
+                        e.Accepted = false;
+                        return;
+                    }
+                }
+
                 if (filterStringList.Count > 0
                     && !string.IsNullOrWhiteSpace(filterString))
                 {
@@ -202,7 +245,7 @@ namespace ProcMon.ViewModel
                 else if (filterStringList.Count > 0)
                     e.Accepted = filterStringList.Contains(db.Process.ToLower());
                 else if (!string.IsNullOrWhiteSpace(filterString))
-                    db.Target.ToLower().Contains(filterString.ToLower());
+                    e.Accepted = db.Target.ToLower().Contains(filterString.ToLower());
                 else
                     e.Accepted = true;
             }
@@ -252,6 +295,53 @@ namespace ProcMon.ViewModel
                 OnFilterChange();
             }
         }
+        string _itemNumString = null;
+        public string itemNumString
+        {
+            get
+            {
+                if (_itemNumString == null)
+                    _itemNumString = string.Empty;
+                return _itemNumString;
+            }
+            set
+            {
+                _itemNumString = value;
+                OnPropertyChanged("itemNumString");
+            }
+        }
+        string _itemNumString2 = null;
+        public string itemNumString2
+        {
+            get
+            {
+                if (_itemNumString2 == null)
+                    _itemNumString2 = string.Empty;
+                return _itemNumString2;
+            }
+            set
+            {
+                _itemNumString2 = value;
+                OnPropertyChanged("itemNumString2");
+            }
+        }
+
+
+        string _itemAvgTime = "0";
+        public string itemAvgTime
+        {
+            get
+            {
+                return _itemAvgTime;
+            }
+            set
+            {
+                _itemAvgTime = value;
+                OnPropertyChanged("itemAvgTime");
+            }
+        }
+
+
 
         private void OnFilterChange()
         {
@@ -279,7 +369,32 @@ namespace ProcMon.ViewModel
                     itemlist_currentprocess = Visibility.Hidden;
                     itemlist_db = Visibility.Visible;
                     break;
+                case "Button_Filter_All":
+                    if (itemlist_currentprocess == Visibility.Visible)
+                        FilterProcessType = pinvoke.DRIVER_TYPE.LAST;
+                    else
+                        FilterDBType = pinvoke.DRIVER_TYPE.LAST;
+                    break;
+                case "Button_Filter_OB":
+                    if (itemlist_currentprocess == Visibility.Visible)
+                        FilterProcessType = pinvoke.DRIVER_TYPE.OB;
+                    else
+                        FilterDBType = pinvoke.DRIVER_TYPE.OB;
+                    break;
+                case "Button_Filter_FS":
+                    if (itemlist_currentprocess == Visibility.Visible)
+                        FilterProcessType = pinvoke.DRIVER_TYPE.FILESYSTEM;
+                    else
+                        FilterDBType = pinvoke.DRIVER_TYPE.FILESYSTEM;
+                    break;
+                case "Button_Filter_REG":
+                    if (itemlist_currentprocess == Visibility.Visible)
+                        FilterProcessType = pinvoke.DRIVER_TYPE.REGISTRY;
+                    else
+                        FilterDBType = pinvoke.DRIVER_TYPE.REGISTRY;
+                    break;
             }
+            OnFilterChange();
         }
 
         bool CanExecute_Button(object obj)
@@ -350,6 +465,32 @@ namespace ProcMon.ViewModel
                     case pinvoke.DRIVER_TYPE.FILESYSTEM:
                         try
                         {
+                            Clipboard.SetText(model.Target);
+                            string Path = model.Target;
+                            Process.Start("explorer.exe", "/select, " + Path);
+                        }
+                        catch (Exception ex)
+                        {
+
+                        }
+                        break;
+                    case pinvoke.DRIVER_TYPE.REGISTRY:
+                        Clipboard.SetText(model.Target);
+                        break;
+                }
+            }
+            else if(dataGrid.Name == "itemGrid_DB")
+            {
+                Model.DBModel model = (Model.DBModel)dataGrid.SelectedItem;
+
+                switch (model.Type)
+                {
+                    case pinvoke.DRIVER_TYPE.OB:
+                        Clipboard.SetText(model.Target);
+                        break;
+                    case pinvoke.DRIVER_TYPE.FILESYSTEM:
+                        try
+                        {
                             string Path = "C:" + model.Target;
                             Process.Start("explorer.exe", "/select, " + Path);
                         }
@@ -368,6 +509,17 @@ namespace ProcMon.ViewModel
                 Model.ProcessModel p = (Model.ProcessModel)dataGrid.SelectedItem;
 
                 pinvoke.BringProcessToFront(p.PID);
+            }
+            else if(dataGrid.Name == "ProcessGrid_DB")
+            {
+                drivermodels_db.Clear();
+                Model.ProcessModel p = (Model.ProcessModel)dataGrid.SelectedItem;
+
+                var items = db.ReadItems(p.ProcessName);
+                foreach (var item in items)
+                {
+                    drivermodels_db.Add(item);
+                }
             }
         }
 
@@ -486,129 +638,140 @@ namespace ProcMon.ViewModel
             }
         }
 
+        class InputDataClass
+        {
+            public pinvoke.DRIVER_TYPE Type;
+            public object dataStruct;
+        }
+
+        List<InputDataClass> InputDataList = new List<InputDataClass>();
+
         public void AddData(pinvoke.DRIVER_TYPE Type, object dataStruct)
         {
-            Model.DriverModel driverModel = new Model.DriverModel();
-            //bool UseData = true;
+            InputDataList.Add(new InputDataClass() { Type = Type, dataStruct = dataStruct });
+            itemNumString2 = InputDataList.Count.ToString();
+            //new System.Threading.Thread(() => AddDataThread(Type, dataStruct)).Start();
+        }
 
-            db.InsertData(Type, dataStruct);
-
-            if(driverModels.Count > 500)
-                Application.Current.Dispatcher.Invoke(
-                    new Action(() => driverModels.RemoveAt(0)));
-
-            switch (Type)
+        //public void AddDataThread(pinvoke.DRIVER_TYPE Type, object dataStruct)
+        public void AddDataThread()
+        {
+            while (true)
             {
-                case pinvoke.DRIVER_TYPE.OB:
-                    pinvoke.OBDATA ob = (pinvoke.OBDATA)dataStruct;
+                if (exitEvent.WaitOne(0))
+                    break;
+                if (InputDataList.Count == 0)
+                {
+                    System.Threading.Thread.Sleep(500);
+                    continue;
+                }
 
-                    driverModel.date = new DateTime(ob.SystemTick);
-                    driverModel.PID = (int)ob.PID;
-                    driverModel.Act = string.Empty;
-                    try
+                InputDataClass data = null;
+                pinvoke.DRIVER_TYPE Type = pinvoke.DRIVER_TYPE.OB;
+                object dataStruct = null;
+
+                try
+                {
+                    data = InputDataList[0];
+                    if (data == null)
                     {
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_TERMINATE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_TERMINATE)
-                            driverModel.Act += "\nPROCESS_TERMINATE";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_THREAD) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_THREAD)
-                            driverModel.Act += "\nPROCESS_CREATE_THREAD";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_OPERATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_OPERATION)
-                            driverModel.Act += "\nPROCESS_VM_OPERATION";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_READ) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_READ)
-                            driverModel.Act += "\nPROCESS_VM_READ";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_WRITE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_VM_WRITE)
-                            driverModel.Act += "\nPROCESS_VM_WRITE";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_DUP_HANDLE) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_DUP_HANDLE)
-                            driverModel.Act += "\nPROCESS_DUP_HANDLE";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_PROCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_CREATE_PROCESS)
-                            driverModel.Act += "\nPROCESS_CREATE_PROCESS";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_QUOTA) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_QUOTA)
-                            driverModel.Act += "\nPROCESS_SET_QUOTA";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SET_INFORMATION)
-                            driverModel.Act += "\nPROCESS_SET_INFORMATION";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_INFORMATION)
-                            driverModel.Act += "\nPROCESS_QUERY_INFORMATION";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SUSPEND_RESUME) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_SUSPEND_RESUME)
-                            driverModel.Act += "\nPROCESS_SUSPEND_RESUME";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_LIMITED_INFORMATION) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_QUERY_LIMITED_INFORMATION)
-                            driverModel.Act += "\nPROCESS_QUERY_LIMITED_INFORMATION";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.SYNCHRONIZE) == (int)pinvoke.PROCESS_ACESS_MASK.SYNCHRONIZE)
-                            driverModel.Act += "\nSYNCHRONIZE";
-                        if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS)
-                            driverModel.Act += "\nPROCESS_ALL_ACCESS";
+                        InputDataList.RemoveAt(0);
+                        continue;
                     }
-                    catch (Exception e)
-                    {
+                    Type = data.Type;
+                    dataStruct = data.dataStruct;
+                    InputDataList.RemoveAt(0);
+                    itemNumString2 = InputDataList.Count.ToString();
+                }
+                catch(Exception e)
+                {
+                    continue;
+                }
 
-                    }
+                Model.DriverModel driverModel = new Model.DriverModel();
 
-                    if (driverModel.Act == string.Empty)
-                        driverModel.Act = ob.DesiredAccess.ToString("X");
-                    else
-                        driverModel.Act = driverModel.Act.Trim('\n');
+                switch (Type)
+                {
+                    case pinvoke.DRIVER_TYPE.OB:
+                        pinvoke.OBDATA ob = (pinvoke.OBDATA)dataStruct;
 
-                    driverModel.Target = ob.TargetPID.ToString();
-                    try
-                    {
-                        driverModel.Target += " | " + Process.GetProcessById((int)ob.TargetPID).ProcessName;
-                    } catch(Exception e) { }
-                    //driverModel.TargetPID = (int)ob.TargetPID;
-                    //driverModel.Operation = (int)ob.Operation;
-                    //driverModel.DesiredAccess = (int)ob.DesiredAccess;
-                    break;
-                case pinvoke.DRIVER_TYPE.FILESYSTEM:
-                    pinvoke.FSDATA fs = (pinvoke.FSDATA)dataStruct;
+                        driverModel.date = new DateTime(ob.SystemTick);
+                        driverModel.PID = (int)ob.PID;
+                        driverModel.Act = string.Empty;
+                        try
+                        {
+                            if (((int)ob.DesiredAccess & (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS) == (int)pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS)
+                                driverModel.Act = pinvoke.PROCESS_ACESS_MASK.PROCESS_ALL_ACCESS.ToString();
+                            else
+                                foreach (pinvoke.PROCESS_ACESS_MASK mask in Enum.GetValues(typeof(pinvoke.PROCESS_ACESS_MASK)))
+                                {
+                                    if (((int)ob.DesiredAccess & (int)mask) == (int)mask)
+                                        driverModel.Act += $"\n{mask.ToString()}";
+                                }
+                        }
+                        catch (Exception e)
+                        {
 
-                    if (string.IsNullOrWhiteSpace(fs.FileName))
-                        return;
+                        }
 
-                    if (fs.PID == 0 || fs.PID == 4)
-                        return;
+                        if (driverModel.Act == string.Empty)
+                            driverModel.Act = ob.DesiredAccess.ToString("X");
+                        else
+                            driverModel.Act = driverModel.Act.Trim('\n');
 
+                        driverModel.Target = ob.TargetPID.ToString();
+                        try
+                        {
+                            driverModel.Target += " | " + Process.GetProcessById((int)ob.TargetPID).ProcessName;
+                        }
+                        catch (Exception e) { }
+                        //driverModel.TargetPID = (int)ob.TargetPID;
+                        //driverModel.Operation = (int)ob.Operation;
+                        //driverModel.DesiredAccess = (int)ob.DesiredAccess;
+                        break;
+                    case pinvoke.DRIVER_TYPE.FILESYSTEM:
+                        pinvoke.FSDATA fs = (pinvoke.FSDATA)dataStruct;
 
-                    driverModel.date = new DateTime(fs.SystemTick);
-                    driverModel.PID = (int)fs.PID;
-                    driverModel.Act = fs.MajorFunction.ToString();
-                    driverModel.Target = fs.FileName;
+                        if (string.IsNullOrWhiteSpace(fs.FileName))
+                            continue;
 
-                    //var sp = driverModel.Target.Split('.');
-                    //string extension = sp[sp.Length - 1].ToLower();
-                    //if (extension == "dll"
-                    //    || extension == "mun"
-                    //    || extension == "mui"
-                    //    || extension == "pf"
-                    //    || extension == "pri"
-                    //    || extension == "manifest"
-                    //    || extension == "nls"
-                    //    || extension == "dat"
-                    //    || extension == "clb"
-                    //    || extension == "odl"
-                    //    )
-                    //    return;
+                        if (fs.PID == 0 || fs.PID == 4)
+                            continue;
 
-                    //driverModel.MajorFunction = (int)fs.MajorFunction;
-                    //driverModel.FileName = fs.FileName;
-                    break;
-                case pinvoke.DRIVER_TYPE.REGISTRY:
-                    pinvoke.REGDATA reg = (pinvoke.REGDATA)dataStruct;
-                    driverModel.date = new DateTime(reg.SystemTick);
-                    driverModel.PID = (int)reg.PID;
-                    driverModel.Act = reg.NotifyClass.ToString();
-                    if (reg.RegistryFullPath.Contains("\\\\"))
-                        driverModel.Target = reg.RegistryFullPath.Split('\\')[1];
-                    else
-                        driverModel.Target = reg.RegistryFullPath;
-                    driverModel.Target = driverModel.Target.Trim('\\');
-                    //driverModel.NotifyClass = reg.NotifyClass;
-                    //driverModel.RegistryFullPath = reg.RegistryFullPath;
-                    break;
-                default:
-                    return;
-            }
-            driverModel.date = driverModel.date.ToLocalTime();
-            driverModel.Type = Type;
+                        driverModel.date = new DateTime(fs.SystemTick);
+                        driverModel.PID = (int)fs.PID;
+                        driverModel.Act = fs.MajorFunction.ToString();
+                        driverModel.Target = "C:" + fs.FileName;
+                        break;
+                    case pinvoke.DRIVER_TYPE.REGISTRY:
+                        pinvoke.REGDATA reg = (pinvoke.REGDATA)dataStruct;
+                        driverModel.date = new DateTime(reg.SystemTick);
+                        driverModel.PID = (int)reg.PID;
+                        driverModel.Act = reg.NotifyClass.ToString();
+                        if (reg.RegistryFullPath.Contains("\\\\"))
+                            driverModel.Target = reg.RegistryFullPath.Split('\\')[1];
+                        else
+                            driverModel.Target = reg.RegistryFullPath;
+                        driverModel.Target = driverModel.Target.Trim('\\');
+                        //driverModel.NotifyClass = reg.NotifyClass;
+                        //driverModel.RegistryFullPath = reg.RegistryFullPath;
+                        break;
+                    default:
+                        continue;
+                }
+                driverModel.date = driverModel.date.ToLocalTime();
+                driverModel.date = driverModel.date.AddYears(1600);
+                driverModel.Type = Type;
 
-            lock (ListLock)
-            {
+                db.insertQueue(Type, dataStruct);
+
+                //Application.Current.Dispatcher.Invoke(
+                //    new Action(() => driverModels.Add(driverModel))
+                //    );
+                //itemNumString = driverModels.Count.ToString();
+
+                //lock (ListLock)
+                //{
                 if (!TargetList.ContainsKey(driverModel.PID))
                 {
                     TargetList.Add(driverModel.PID, new Dictionary<string, Model.DriverModel>());
@@ -620,6 +783,7 @@ namespace ProcMon.ViewModel
                     Application.Current.Dispatcher.Invoke(
                         new Action(() => driverModels.Add(driverModel))
                         );
+                    itemNumString = driverModels.Count.ToString();
                 }
                 else
                 {
@@ -633,7 +797,11 @@ namespace ProcMon.ViewModel
                         //    );
                     }
                 }
+                TimeSpan ts = DateTime.Now - driverModel.date;
+                itemAvgTime = Math.Round((ts.TotalSeconds + double.Parse(itemAvgTime)) / 2, 3).ToString();
+                //}
             }
+            Console.WriteLine("AddDataThread Thread Exit");
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

@@ -7,7 +7,7 @@
         xmlns:ViewModel="clr-namespace:ProcMon.ViewModel" x:Class="ProcMon.MainWindow"
     xmlns:behaviors="http://schemas.microsoft.com/xaml/behaviors"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="ProcMon" Height="400" Width="800" MinHeight="400" MinWidth="800">
     <Window.DataContext>
         <ViewModel:MainViewModel/>
     </Window.DataContext>
@@ -16,15 +16,15 @@
                   AutoGenerateColumns="False"
                   ItemsSource="{Binding DriverCollection}"
                   Visibility="{Binding itemlist_currentprocess}"
-                  HorizontalAlignment="Left" Height="312" Margin="207,98,0,0" VerticalAlignment="Top" Width="577">
+                  Margin="305,73,9.6,10.4">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="Date" Binding="{Binding date}"/>
                 <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
-                <DataGridTextColumn Width="Auto" Header="Act" Binding="{Binding Act}"/>
-                <DataGridTextColumn Width="Auto" Header="Target" Binding="{Binding Target}"/>
+                <DataGridTextColumn Width="1*" Header="Act" Binding="{Binding Act}"/>
+                <DataGridTextColumn Width="3*" Header="Target" Binding="{Binding Target}"/>
             </DataGrid.Columns>
             <behaviors:Interaction.Triggers>
-                <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=ProcessGrid}">
+                <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=uiGrid}">
                     <behaviors:CallMethodAction TargetObject="{Binding}" MethodName="Grid_MouseRightClick"/>
                 </behaviors:EventTrigger>
             </behaviors:Interaction.Triggers>
@@ -33,11 +33,11 @@
                   ItemsSource="{Binding Path=processModels, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
                   Visibility="{Binding processlist_currentprocess}"
             AutoGenerateColumns="False"
-            HorizontalAlignment="Left" Height="376" VerticalAlignment="Top" Width="202" Margin="0,34,0,0">
+            HorizontalAlignment="Left" Width="300" Margin="0,34,0,9.8">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Width="30" Header="Filter" Binding="{Binding IsFiltering, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Width="Auto" Header="PID" Binding="{Binding PID}"/>
-                <DataGridTextColumn Width="Auto" Header="Name" Binding="{Binding ProcessName}"/>
+                <DataGridTextColumn Width="1*" Header="Name" Binding="{Binding ProcessName}"/>
             </DataGrid.Columns>
             <behaviors:Interaction.Triggers>
                 <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=ProcessGrid}">
@@ -48,11 +48,11 @@
         <Button x:Name="Button_Filter_All"
                 Command="{Binding btn_cmd}"
                 CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
-                Content="Button" HorizontalAlignment="Left" Margin="207,74,0,0" VerticalAlignment="Top" Width="75"/>
+                Content="All" HorizontalAlignment="Left" Margin="305,49,0,0" VerticalAlignment="Top" Width="75"/>
         <Button x:Name="Button_Filter_OB"
             Command="{Binding btn_cmd}"
                 CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
-            Content="Button" HorizontalAlignment="Left" Margin="287,74,0,0" VerticalAlignment="Top" Width="75"/>
+            Content="OB" HorizontalAlignment="Left" Margin="385,49,0,0" VerticalAlignment="Top" Width="75"/>
         <Button x:Name="Button_List_Process"
             Command="{Binding btn_cmd}"
             CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
@@ -60,18 +60,17 @@
         <Button x:Name="Button_List_DB"
             Command="{Binding btn_cmd}"
             CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
-            Content="DB" HorizontalAlignment="Left" Margin="90,10,0,0" VerticalAlignment="Top" Width="75"/>
+            Content="DB" HorizontalAlignment="Left" Margin="90,10,0,0" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.87,0.633"/>
         <DataGrid x:Name="ProcessGrid_DB"
             ItemsSource="{Binding Path=processModels_DB, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"
                   Visibility="{Binding processlist_db}"
             AutoGenerateColumns="False"
-            HorizontalAlignment="Left" Height="376" VerticalAlignment="Top" Width="202" Margin="0,34,0,0">
+            HorizontalAlignment="Left" Width="300" Margin="0,34,0,9.8">
             <DataGrid.Columns>
-                <DataGridCheckBoxColumn Width="30" Header="Filter" Binding="{Binding IsFiltering, UpdateSourceTrigger=PropertyChanged}"/>
-                <DataGridTextColumn Width="Auto" Header="Name" Binding="{Binding ProcessName}"/>
+                <DataGridTextColumn Width="1*" Header="Name" Binding="{Binding ProcessName}"/>
             </DataGrid.Columns>
             <behaviors:Interaction.Triggers>
-                <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=ProcessGrid}">
+                <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=ProcessGrid_DB}">
                     <behaviors:CallMethodAction TargetObject="{Binding}" MethodName="Grid_MouseRightClick"/>
                 </behaviors:EventTrigger>
             </behaviors:Interaction.Triggers>
@@ -79,13 +78,12 @@
         <DataGrid x:Name="itemGrid_DB"
             AutoGenerateColumns="False"
             ItemsSource="{Binding DriverCollection_DB}"
-                  Visibility="{Binding itemlist_db}"
-            HorizontalAlignment="Left" Height="312" Margin="207,98,0,0" VerticalAlignment="Top" Width="577">
+                  Visibility="{Binding itemlist_db}" Margin="305,73,9.6,10.4">
             <DataGrid.Columns>
                 <DataGridTextColumn Width="Auto" Header="Date" Binding="{Binding date}"/>
                 <DataGridTextColumn Width="Auto" Header="Process" Binding="{Binding Process}"/>
-                <DataGridTextColumn Width="Auto" Header="Act" Binding="{Binding Act}"/>
-                <DataGridTextColumn Width="Auto" Header="Target" Binding="{Binding Target}"/>
+                <DataGridTextColumn Width="1*" Header="Act" Binding="{Binding Act}"/>
+                <DataGridTextColumn Width="3*" Header="Target" Binding="{Binding Target}"/>
             </DataGrid.Columns>
             <behaviors:Interaction.Triggers>
                 <behaviors:EventTrigger EventName="MouseRightButtonDown" SourceObject="{Binding ElementName=itemGrid_DB}">
@@ -93,6 +91,17 @@
                 </behaviors:EventTrigger>
             </behaviors:Interaction.Triggers>
         </DataGrid>
-        <TextBox HorizontalAlignment="Left" Height="23" Margin="207,10,0,0" TextWrapping="Wrap" Text="{Binding filterString, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Top" Width="120"/>
+        <TextBox HorizontalAlignment="Left" Height="23" Margin="305,10,0,0" TextWrapping="Wrap" Text="{Binding filterString, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Top" Width="315"/>
+        <Button x:Name="Button_Filter_FS"
+            Command="{Binding btn_cmd}"
+            CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+            Content="File" HorizontalAlignment="Left" Margin="465,49,0,0" VerticalAlignment="Top" Width="75"/>
+        <Button x:Name="Button_Filter_REG"
+            Command="{Binding btn_cmd}"
+            CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+            Content="Registry" HorizontalAlignment="Left" Margin="545,49,0,0" VerticalAlignment="Top" Width="75"/>
+        <TextBlock Margin="625,10,0,0" TextWrapping="Wrap" Text="{Binding itemAvgTime}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
+        <TextBlock Margin="625,31,0,0" TextWrapping="Wrap" Text="{Binding itemNumString2}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
+        <TextBlock Margin="625,49,0,0" TextWrapping="Wrap" Text="{Binding itemNumString}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
     </Grid>
 </Window>
