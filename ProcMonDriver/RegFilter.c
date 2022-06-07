@@ -553,107 +553,44 @@ Return Value:
     switch (NotifyClass)
     {
     //case RegNtPreDeleteKey:
-    //{
-        //PREG_DELETE_KEY_INFORMATION PreDeleteKey =
-        //    (PREG_DELETE_KEY_INFORMATION)Argument2;
-
-        //if (PreDeleteKey->Object != NULL)
-        //    RegistryObject = PreDeleteKey->Object;
-
-        //RtlInitUnicodeString(&RegistryName, L"");
-    //}
+    //    RegistryObject = ((PREG_DELETE_KEY_INFORMATION)Argument2)->Object;
+    //    RtlInitUnicodeString(&RegistryName, L"");
     //break;
-    //case RegNtPreSetValueKey:
-    //{
-        //PREG_SET_VALUE_KEY_INFORMATION PreSetValueKey =
-        //    (PREG_SET_VALUE_KEY_INFORMATION)Argument2;
-
-        //if (PreSetValueKey->Object != NULL)
-        //    RegistryObject = PreSetValueKey->Object;
-
-        //if (PreSetValueKey->ValueName != NULL)
-        //    if (PreSetValueKey->ValueName->Buffer != NULL)
-        //        RtlInitUnicodeString(&RegistryName, PreSetValueKey->ValueName->Buffer);
-    //}
-    //break;
-    //case RegNtPreDeleteValueKey:
-    //{
-        //PREG_DELETE_VALUE_KEY_INFORMATION PreDeleteValueKey =
-        //    (PREG_DELETE_VALUE_KEY_INFORMATION)Argument2;
-
-        //if (PreDeleteValueKey->Object != NULL)
-        //    RegistryObject = PreDeleteValueKey->Object;
-
-        //if (PreDeleteValueKey->ValueName != NULL)
-        //    if (PreDeleteValueKey->ValueName->Buffer != NULL)
-        //        RtlInitUnicodeString(&RegistryName, PreDeleteValueKey->ValueName->Buffer);
-    //}
-    //break;
+    case RegNtPreSetValueKey:
+        RegistryObject = ((PREG_SET_VALUE_KEY_INFORMATION)Argument2)->Object;
+        RegistryName = ((PREG_SET_VALUE_KEY_INFORMATION)Argument2)->ValueName;
+    break;
+    case RegNtPreDeleteValueKey:
+        RegistryObject = ((PREG_DELETE_VALUE_KEY_INFORMATION)Argument2)->Object;
+        RegistryName = ((PREG_DELETE_VALUE_KEY_INFORMATION)Argument2)->ValueName;
+    break;
     //case RegNtPreSetInformationKey:
     //case RegNtPreRenameKey:
-    //{
-        //PREG_RENAME_KEY_INFORMATION PreRenameKey =
-        //    (PREG_RENAME_KEY_INFORMATION)Argument2;
-
-        //if (PreRenameKey->Object != NULL)
-        //    RegistryObject = PreRenameKey->Object;
-
-        //if (PreRenameKey->NewName != NULL)
-        //    if (PreRenameKey->NewName->Buffer != NULL)
-        //        RtlInitUnicodeString(&RegistryName, PreRenameKey->NewName->Buffer);
-    //}
+    //    RegistryObject = ((PREG_RENAME_KEY_INFORMATION)Argument2)->Object;
+    //    RegistryName = ((PREG_RENAME_KEY_INFORMATION)Argument2)->NewName;
     //break;
     //case RegNtPreEnumerateKey:
     //case RegNtPreEnumerateValueKey:
     //case RegNtPreQueryKey:
-    //{
-        //PREG_QUERY_KEY_INFORMATION PreQueryKey =
-        //    (PREG_QUERY_KEY_INFORMATION)Argument2;
-
-        //if (PreQueryKey->Object != NULL)
-        //    RegistryObject = PreQueryKey->Object;
-
-        //RtlInitUnicodeString(&RegistryName, L"");
-    //}
+    //    RegistryObject = ((PREG_QUERY_KEY_INFORMATION)Argument2)->Object;
+    //    RtlInitUnicodeString(&RegistryName, L"");
     //break;
     //case RegNtPreQueryValueKey:
-    //{
-        //PREG_QUERY_VALUE_KEY_INFORMATION PreQueryValueKey =
-        //    (PREG_QUERY_VALUE_KEY_INFORMATION)Argument2;
-
-        //if (PreQueryValueKey->Object != NULL)
-        //    RegistryObject = PreQueryValueKey->Object;
-
-        //if (PreQueryValueKey->ValueName != NULL)
-        //    if (PreQueryValueKey->ValueName->Buffer != NULL)
-        //        RtlInitUnicodeString(&RegistryName, PreQueryValueKey->ValueName->Buffer);
-    //}
+    //    RegistryObject = ((PREG_QUERY_VALUE_KEY_INFORMATION)Argument2)->Object;
+    //    RegistryName = ((PREG_QUERY_VALUE_KEY_INFORMATION)Argument2)->ValueName;
     //break;
     //case RegNtPreQueryMultipleValueKey:
     //case RegNtPreKeyHandleClose:
-    //{
-        //PREG_KEY_HANDLE_CLOSE_INFORMATION PreKeyHandleClose =
-        //    (PREG_KEY_HANDLE_CLOSE_INFORMATION)Argument2;
-
-        //if (PreKeyHandleClose->Object != NULL)
-        //    RegistryObject = PreKeyHandleClose->Object;
-
-        //RtlInitUnicodeString(&RegistryName, L"");
-    //}
+    //    RegistryObject = ((PREG_KEY_HANDLE_CLOSE_INFORMATION)Argument2)->Object;
+    //    RtlInitUnicodeString(RegistryName, L"");
     //break;
     case RegNtPreCreateKeyEx:
-        if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject != NULL)
-            RegistryObject = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject;
-
-        if (((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
-            RegistryName = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName;
+		RegistryObject = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->RootObject;
+		RegistryName = ((PREG_CREATE_KEY_INFORMATION_V1)Argument2)->CompleteName;
         break;
     case RegNtPreOpenKeyEx:
-		if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject != NULL)
-			RegistryObject = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject;
-
-        if (((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName != NULL)
-            RegistryName = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName;
+		RegistryObject = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->RootObject;
+		RegistryName = ((PREG_OPEN_KEY_INFORMATION_V1)Argument2)->CompleteName;
         break;
     //case RegNtPreFlushKey:
     //case RegNtPreLoadKey:
