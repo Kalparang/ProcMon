@@ -29,6 +29,7 @@ namespace ProcMon.ViewModel
 
         public CommandControl btn_cmd { get; set; }
         object ListLock;
+        object ListLock2;
 
         Visibility _processlist_currentprocess;
         public Visibility processlist_currentprocess
@@ -130,6 +131,7 @@ namespace ProcMon.ViewModel
             btn_cmd = new CommandControl(Button_Event, CanExecute_Button);
 
             ListLock = new object();
+            ListLock2 = new object();
             TargetList = new Dictionary<long, Dictionary<string, Model.DriverModel>>();
 
             db = new DBManage();
@@ -175,8 +177,20 @@ namespace ProcMon.ViewModel
 
             threads = new List<Thread>();
             threads.Add(new Thread(new ThreadStart(AddDataThread)));
+            //threads.Add(new Thread(new ThreadStart(RefreshThread)));
             foreach (Thread t in threads)
                 t.Start();
+        }
+
+        void RefreshThread()
+        {
+            while (exitEvent.WaitOne(0) == false)
+            {
+                Application.Current.Dispatcher.Invoke(
+                    new Action(() => DriverCollectionViewSource.View.Refresh())
+                    );
+                Thread.Sleep(1500);
+            }
         }
 
         private void Current_Exit(object sender, ExitEventArgs e)
@@ -619,6 +633,15 @@ namespace ProcMon.ViewModel
             switch (Type)
             {
                 case 0:
+                    if(processModels.Contains(p))
+                    {
+                        FilterChanged(p.PID, p.ProcessName, false);
+                        lock (ListLock)
+                            TargetList.Remove(p.PID);
+                        Application.Current.Dispatcher.Invoke(
+                            new Action(() => processModels.Remove(p)));
+                    }
+
                     p.fc += FilterChanged;
                     lock (ListLock)
                     {
@@ -628,13 +651,13 @@ namespace ProcMon.ViewModel
                     Application.Current.Dispatcher.Invoke(
                         new Action(() => processModels.Add(p)));
                     break;
-                case 1:
-                    FilterChanged(p.PID, p.ProcessName, false);
-                    lock(ListLock)
-                        TargetList.Remove(p.PID);
-                    Application.Current.Dispatcher.Invoke(
-                        new Action(() => processModels.Remove(p)));
-                    break;
+                //case 1:
+                //    FilterChanged(p.PID, p.ProcessName, false);
+                //    lock(ListLock)
+                //        TargetList.Remove(p.PID);
+                //    Application.Current.Dispatcher.Invoke(
+                //        new Action(() => processModels.Remove(p)));
+                //    break;
             }
         }
 
@@ -648,8 +671,11 @@ namespace ProcMon.ViewModel
 
         public void AddData(pinvoke.DRIVER_TYPE Type, object dataStruct)
         {
-            InputDataList.Add(new InputDataClass() { Type = Type, dataStruct = dataStruct });
-            itemNumString2 = InputDataList.Count.ToString();
+            lock (ListLock2)
+            {
+                InputDataList.Add(new InputDataClass() { Type = Type, dataStruct = dataStruct });
+                itemNumString2 = InputDataList.Count.ToString();
+            }
             //new System.Threading.Thread(() => AddDataThread(Type, dataStruct)).Start();
         }
 
@@ -670,22 +696,25 @@ namespace ProcMon.ViewModel
                 pinvoke.DRIVER_TYPE Type = pinvoke.DRIVER_TYPE.OB;
                 object dataStruct = null;
 
-                try
+                lock (ListLock2)
                 {
-                    data = InputDataList[0];
-                    if (data == null)
+                    try
                     {
+                        data = InputDataList[0];
+                        if (data == null)
+                        {
+                            InputDataList.RemoveAt(0);
+                            continue;
+                        }
+                        Type = data.Type;
+                        dataStruct = data.dataStruct;
                         InputDataList.RemoveAt(0);
+                        itemNumString2 = InputDataList.Count.ToString();
+                    }
+                    catch (Exception e)
+                    {
                         continue;
                     }
-                    Type = data.Type;
-                    dataStruct = data.dataStruct;
-                    InputDataList.RemoveAt(0);
-                    itemNumString2 = InputDataList.Count.ToString();
-                }
-                catch(Exception e)
-                {
-                    continue;
                 }
 
                 Model.DriverModel driverModel = new Model.DriverModel();
@@ -741,6 +770,8 @@ namespace ProcMon.ViewModel
                         driverModel.date = new DateTime(fs.SystemTick);
                         driverModel.PID = (int)fs.PID;
                         driverModel.Act = fs.MajorFunction.ToString();
+                        if(fs.DeletePending == 1 || fs.DeleteAccess == 1)
+                            driverModel.Act += "\nDelete";
                         driverModel.Target = "C:" + fs.FileName;
                         break;
                     case pinvoke.DRIVER_TYPE.REGISTRY:
@@ -770,36 +801,38 @@ namespace ProcMon.ViewModel
                 //    );
                 //itemNumString = driverModels.Count.ToString();
 
-                //lock (ListLock)
-                //{
-                if (!TargetList.ContainsKey(driverModel.PID))
+                lock (ListLock)
                 {
-                    TargetList.Add(driverModel.PID, new Dictionary<string, Model.DriverModel>());
-                }
-
-                if (!TargetList[driverModel.PID].ContainsKey(driverModel.Target.ToLower()))
-                {
-                    TargetList[driverModel.PID].Add(driverModel.Target.ToLower(), driverModel);
-                    Application.Current.Dispatcher.Invoke(
-                        new Action(() => driverModels.Add(driverModel))
-                        );
-                    itemNumString = driverModels.Count.ToString();
-                }
-                else
-                {
-                    Model.DriverModel target = TargetList[driverModel.PID][driverModel.Target.ToLower()];
-                    if (driverModel.date > target.date)
+                    if (!TargetList.ContainsKey(driverModel.PID))
                     {
-                        target.Act = driverModel.Act;
-                        target.date = driverModel.date;
-                        //Application.Current.Dispatcher.Invoke(
-                        //    new Action(() => DriverCollectionViewSource.View.Refresh())
-                        //    );
+                        TargetList.Add(driverModel.PID, new Dictionary<string, Model.DriverModel>());
+                    }
+
+                    string dickKey = driverModel.Target.ToLower() + driverModel.Act.ToLower();
+
+                    if (!TargetList[driverModel.PID].ContainsKey(dickKey))
+                    {
+                        TargetList[driverModel.PID].Add(dickKey, driverModel);
+                        Application.Current.Dispatcher.Invoke(
+                            new Action(() => driverModels.Add(driverModel))
+                            );
+                        itemNumString = driverModels.Count.ToString();
+                    }
+                    else
+                    {
+                        Model.DriverModel target = TargetList[driverModel.PID][dickKey];
+                        if (driverModel.date > target.date)
+                        {
+                            target.date = driverModel.date;
+                            //Application.Current.Dispatcher.BeginInvoke(
+                            //    new Action(() => DriverCollectionViewSource.View.Refresh())
+                            //    );
+                        }
                     }
                 }
+
                 TimeSpan ts = DateTime.Now - driverModel.date;
                 itemAvgTime = Math.Round((ts.TotalSeconds + double.Parse(itemAvgTime)) / 2, 3).ToString();
-                //}
             }
             Console.WriteLine("AddDataThread Thread Exit");
         }

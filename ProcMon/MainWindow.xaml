@@ -100,8 +100,8 @@
             Command="{Binding btn_cmd}"
             CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
             Content="Registry" HorizontalAlignment="Left" Margin="545,49,0,0" VerticalAlignment="Top" Width="75"/>
-        <TextBlock Margin="625,10,0,0" TextWrapping="Wrap" Text="{Binding itemAvgTime}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
-        <TextBlock Margin="625,31,0,0" TextWrapping="Wrap" Text="{Binding itemNumString2}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
-        <TextBlock Margin="625,49,0,0" TextWrapping="Wrap" Text="{Binding itemNumString}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
+        <TextBlock Visibility="Hidden" Margin="625,10,0,0" TextWrapping="Wrap" Text="{Binding itemAvgTime}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
+        <TextBlock Visibility="Hidden" Margin="625,31,0,0" TextWrapping="Wrap" Text="{Binding itemNumString2}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
+        <TextBlock Visibility="Hidden" Margin="625,49,0,0" TextWrapping="Wrap" Text="{Binding itemNumString}" VerticalAlignment="Top" HorizontalAlignment="Left" Width="250"/>
     </Grid>
 </Window>

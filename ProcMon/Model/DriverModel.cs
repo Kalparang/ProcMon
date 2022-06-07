@@ -33,7 +33,8 @@ namespace ProcMon.Model
                 return false;
             }
 
-            return this.Target == other.Target;
+            return this.Target.ToLower() == other.Target.ToLower()
+                && this.Act == other.Act;
         }
     }
 
