@@ -89,7 +89,8 @@ namespace ProcMon
             public Int64 SystemTick;
             public long PID;
             public IRP_MAJORFUNCTION MajorFunction;
-            //public IO_STACK_LOCATION_FLAGS Flag;
+            public byte DeletePending;
+            public byte DeleteAccess;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32767)]
             public string FileName;
         }
@@ -547,18 +548,6 @@ namespace ProcMon
             IRP_MJ_PNP = 0x1b,
             IRP_MJ_PNP_POWER = IRP_MJ_PNP,
             IRP_MJ_MAXIMUM_FUNCTION = 0x1b
-        }
-
-        public enum IO_STACK_LOCATION_FLAGS : byte
-        {
-            SL_NORMAL = 0x00,
-            SL_KEY_SPECIFIED = 0x01,
-            SL_OVERRIDE_VERIFY_VOLUME = 0x02,
-            SL_WRITE_THROUGH = 0x04,
-            SL_FT_SEQUENTIAL_WRITE = 0x08,
-            SL_FORCE_DIRECT_WRITE = 0x10,
-            SL_REALTIME_STREAM = 0x20,
-            SL_PERSISTENT_MEMORY_FIXED_MAPPING = 0x20
         }
 
         public enum REG_NOTIFY_CLASS : int
