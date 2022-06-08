@@ -31,6 +31,14 @@ namespace ProcMon.ViewModel
         object ListLock;
         object ListLock2;
 
+        List<string> DenyProcesses = new List<string>()
+        {
+            "lsass", "msmpeng", "svchost", "ctfmon", "services", "csrss", "remoting_host", "conhost", "wmiadap", "rundll32", "taskhostw", "system", "runtimebroker",
+            "dllhost", "serchindexer", "spoolsv", "textinputhost", "winlogon", "dwm", "smss", "wmiprvse"
+        };
+        List<int> DenyPID = new List<int>();
+        Dictionary<int, string> ProcessList = new Dictionary<int, string>();
+
         Visibility _processlist_currentprocess;
         public Visibility processlist_currentprocess
         {
@@ -134,7 +142,7 @@ namespace ProcMon.ViewModel
             ListLock2 = new object();
             TargetList = new Dictionary<long, Dictionary<string, Model.DriverModel>>();
 
-            db = new DBManage();
+            db = new DBManage(ProcessList);
 
             processlist_currentprocess = Visibility.Visible;
             processlist_db = Visibility.Hidden;
@@ -169,6 +177,10 @@ namespace ProcMon.ViewModel
                 d.ProcessName = p.ProcessName;
                 d.fc += FilterChanged;
                 processModels.Add(d);
+
+                if (DenyProcesses.Contains(p.ProcessName.ToLower()))
+                    DenyPID.Add(p.Id);
+                ProcessList.Add(p.Id, p.ProcessName);
             }
 
             processWatch = new ProcessWatch();
@@ -650,14 +662,16 @@ namespace ProcMon.ViewModel
                     }
                     Application.Current.Dispatcher.Invoke(
                         new Action(() => processModels.Add(p)));
+
+                    if (DenyProcesses.Contains(p.ProcessName.ToLower()))
+                        DenyPID.Add((int)p.PID);
+                    ProcessList.Add((int)p.PID, p.ProcessName);
                     break;
-                //case 1:
-                //    FilterChanged(p.PID, p.ProcessName, false);
-                //    lock(ListLock)
-                //        TargetList.Remove(p.PID);
-                //    Application.Current.Dispatcher.Invoke(
-                //        new Action(() => processModels.Remove(p)));
-                //    break;
+                case 1:
+                    if (DenyProcesses.Contains(p.ProcessName.ToLower()))
+                        DenyPID.Remove((int)p.PID);
+                    ProcessList.Remove((int)p.PID);
+                    break;
             }
         }
 
@@ -751,7 +765,7 @@ namespace ProcMon.ViewModel
                         driverModel.Target = ob.TargetPID.ToString();
                         try
                         {
-                            driverModel.Target += " | " + Process.GetProcessById((int)ob.TargetPID).ProcessName;
+                            driverModel.Target += " | " + ProcessList[(int)ob.TargetPID];
                         }
                         catch (Exception e) { }
                         //driverModel.TargetPID = (int)ob.TargetPID;
@@ -794,6 +808,11 @@ namespace ProcMon.ViewModel
                 driverModel.date = driverModel.date.AddYears(1600);
                 driverModel.Type = Type;
 
+                if (DenyPID.Contains(driverModel.PID))
+                {
+                    //Console.WriteLine(ProcessName);
+                    continue;
+                }
                 db.insertQueue(Type, dataStruct);
 
                 //Application.Current.Dispatcher.Invoke(

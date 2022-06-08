@@ -21,9 +21,11 @@ namespace ProcMon
         ManualResetEvent exitEvent;
         
         object lockObject;
+        Dictionary<int, string> ProcessList;
 
-        public DBManage()
+        public DBManage(Dictionary<int, string> ProcessList)
         {
+            this.ProcessList = ProcessList;
             exitEvent = new ManualResetEvent(false);
             string sqlFilePath = Path.Combine(Directory.GetCurrentDirectory(), "ProcMon.sqlite");
             string connectionString = $"Data Source={sqlFilePath}";
@@ -139,16 +141,22 @@ namespace ProcMon
                         case pinvoke.DRIVER_TYPE.OB:
                             pinvoke.OBDATA ob = (pinvoke.OBDATA)data;
                             insertCommand.CommandText += "targetprocesses(process, targetprocess, systemtick, desiredaccess) values ($process, $targetprocess, $systemtick, $desiredaccess)";
-                            WaitPID = (int)ob.PID;
-                            if (ProcessName != null)
-                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            if (ProcessList.ContainsKey((int)ob.PID))
+                                insertCommand.Parameters.AddWithValue("$process", ProcessList[(int)ob.PID]);
                             else
-                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)ob.PID).ProcessName);
-                            WaitPID = (int)ob.TargetPID;
-                            if (ProcessName2 != null)
-                                insertCommand.Parameters.AddWithValue("$targetprocess", ProcessName2);
+                            {
+                                processinsertCommand.Dispose();
+                                insertCommand.Dispose();
+                                continue;
+                            }
+                            if(ProcessList.ContainsKey((int)ob.TargetPID))
+                                insertCommand.Parameters.AddWithValue("$targetprocess", ProcessList[(int)ob.TargetPID]);
                             else
-                                insertCommand.Parameters.AddWithValue("$targetprocess", Process.GetProcessById((int)ob.TargetPID).ProcessName);
+                            {
+                                processinsertCommand.Dispose();
+                                insertCommand.Dispose();
+                                continue;
+                            }
                             dataDate = new DateTime(ob.SystemTick);
                             insertCommand.Parameters.AddWithValue("$desiredaccess", ob.DesiredAccess);
                             break;
@@ -156,10 +164,14 @@ namespace ProcMon
                             pinvoke.FSDATA fs = (pinvoke.FSDATA)data;
                             WaitPID = (int)fs.PID;
                             insertCommand.CommandText += "targetfiles(process, filename, systemtick, majorfunction) values ($process, $filename, $systemtick, $majorfunction)";
-                            if (ProcessName != null)
-                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            if (ProcessList.ContainsKey((int)fs.PID))
+                                insertCommand.Parameters.AddWithValue("$process", ProcessList[(int)fs.PID]);
                             else
-                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)fs.PID).ProcessName);
+                            {
+                                processinsertCommand.Dispose();
+                                insertCommand.Dispose();
+                                continue;
+                            }
                             insertCommand.Parameters.AddWithValue("$filename", "C:" + fs.FileName);
                             dataDate = new DateTime(fs.SystemTick);
                             insertCommand.Parameters.AddWithValue("$majorfunction", fs.MajorFunction);
@@ -168,10 +180,14 @@ namespace ProcMon
                             pinvoke.REGDATA reg = (pinvoke.REGDATA)data;
                             WaitPID = (int)reg.PID;
                             insertCommand.CommandText += "targetregistries(process, registryfullpath, systemtick, notifyclass) values ($process, $registryfullpath, $systemtick, $notifyclass)";
-                            if (ProcessName != null)
-                                insertCommand.Parameters.AddWithValue("$process", ProcessName);
+                            if (ProcessList.ContainsKey((int)reg.PID))
+                                insertCommand.Parameters.AddWithValue("$process", ProcessList[(int)reg.PID]);
                             else
-                                insertCommand.Parameters.AddWithValue("$process", Process.GetProcessById((int)reg.PID).ProcessName);
+                            {
+                                processinsertCommand.Dispose();
+                                insertCommand.Dispose();
+                                continue;
+                            }
                             insertCommand.Parameters.AddWithValue("$registryfullpath", reg.RegistryFullPath);
                             dataDate = new DateTime(reg.SystemTick);
                             insertCommand.Parameters.AddWithValue("$notifyclass", reg.NotifyClass);
@@ -207,7 +223,9 @@ namespace ProcMon
                     continue;
                 }
 
-                insertCommand.Parameters.AddWithValue("$systemtick", dataDate.AddYears(1600).ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                dataDate = dataDate.ToLocalTime();
+                dataDate = dataDate.AddYears(1600);
+                insertCommand.Parameters.AddWithValue("$systemtick", dataDate.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                 processinsertCommand.Parameters[0].Value = insertCommand.Parameters[0].Value;
 
                 lock (lockObject)
