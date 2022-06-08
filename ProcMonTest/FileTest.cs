@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Diagnostics;
+using Microsoft.Win32;
 
 namespace ProcMonTest
 {
@@ -15,6 +16,27 @@ namespace ProcMonTest
         public FileTest()
         {
             FileList = new List<FileStream>();
+        }
+
+        public void InputCommand()
+        {
+            Console.WriteLine("1. PrintList\n2. OpenFile\n3.CloseFile\n4. DeleteFile");
+            string input = Console.ReadLine();
+            switch(input)
+            {
+                case "1":
+                    PrintList();
+                    break;
+                case "2":
+                    OpenFile();
+                    break;
+                case "3":
+                    CloseFile();
+                    break;
+                case "4":
+                    DeleteFile();
+                    break;
+            }
         }
 
         public void PrintList()
@@ -29,24 +51,13 @@ namespace ProcMonTest
         {
             string input;
             string path;
-            FileMode mode;
-            FileAccess access;
 
             try
             {
-                Console.WriteLine("\tOpenFile");
-                Console.Write("\tPath\n> ");
+                Console.Write("Path\n> ");
                 path = Console.ReadLine();
 
-                Console.Write("\tFileMode\n\t1 : CreateNew\n\t2 : Create \n\t3 : Open\n\t4 : OpenOrCreate\n\t5 : Truncate\n\t6 : Append\n> ");
-                input = Console.ReadLine();
-                mode = (FileMode)int.Parse(input);
-
-                Console.Write("\tFileAccess\n\t1 : Read\n\t2 : Write\n\t3: ReadWrite\n> ");
-                input = Console.ReadLine();
-                access = (FileAccess)int.Parse(input);
-
-                var file = File.Open(path, mode, access);
+                var file = File.Open(path, FileMode.OpenOrCreate);
                 FileList.Add(file);
             }
             catch (Exception e)
@@ -61,7 +72,7 @@ namespace ProcMonTest
             {
                 string input;
                 int num;
-                Console.Write("\tClose File Index : ");
+                Console.Write("Close File Index : ");
                 input = Console.ReadLine();
                 num = int.Parse(input);
 
@@ -79,7 +90,7 @@ namespace ProcMonTest
             try
             {
                 string input;
-                Console.Write("\tDelete File Path : ");
+                Console.Write("Delete File Path : ");
                 input = Console.ReadLine();
                 File.Delete(input);
             }
@@ -92,25 +103,85 @@ namespace ProcMonTest
 
     public class RegistryTest
     {
+        public void InputCommand()
+        {
+            Console.WriteLine("1. CreateKey\n2. DeleteKey\n3. SetValue\n4. DeleteValue >");
+            string input = Console.ReadLine();
+            switch(input)
+            {
+                case "1":
+                    CreateOrOpenKey();
+                    break;
+                case "2":
+                    DeleteKey();
+                    break;
+                case "3":
+                    SetKey();
+                    break;
+                case "4":
+                    DeleteValue();
+                    break;
+            }
+        }
 
+        public void CreateOrOpenKey()
+        {
+            Console.WriteLine("Input RegistyrKey >");
+            string input = Console.ReadLine();
+            RegistryKey rk = Registry.CurrentUser.CreateSubKey(input);
+            if(rk == null)
+            {
+                Console.WriteLine("Create or Open Key error");
+                return;
+            }
+        }
+
+        public void DeleteKey()
+        {
+            Console.WriteLine("Input RegistryKey > ");
+            string input = Console.ReadLine();
+            Registry.CurrentUser.DeleteSubKey(input);
+        }
+        public void DeleteValue()
+        {
+            Console.WriteLine("Input RegistryKey > ");
+            string input = Console.ReadLine();
+            RegistryKey rk = Registry.CurrentUser.CreateSubKey(input);
+            if (rk == null)
+            {
+                Console.WriteLine("Create or Open Key error");
+                return;
+            }
+            Console.WriteLine("Input Name > ");
+            input = Console.ReadLine();
+            rk.DeleteValue(input);
+        }
+
+        public void SetKey()
+        {
+            Console.WriteLine("Input RegistryKey > ");
+            string input = Console.ReadLine();
+            RegistryKey rk = Registry.CurrentUser.CreateSubKey(input);
+            if (rk == null)
+            {
+                Console.WriteLine("Create or Open Key error");
+                return;
+            }
+            Console.WriteLine("Input Name > ");
+            input = Console.ReadLine();
+            Console.WriteLine("Input Value > ");
+            string input2 = Console.ReadLine();
+            rk.SetValue(input, input2);
+        }
     }
 
     public class ProcessTest
     {
-        List<Process> processes;
-
-        public ProcessTest()
-        {
-            processes = new List<Process>();
-        }
-
         public void InputCommand()
         {
             Console.WriteLine("1 : Start Process");
             Console.WriteLine("2 : Open Process");
-            Console.WriteLine("3 : Print Process");
-            Console.WriteLine("4 : Close Process");
-            Console.WriteLine("5 : Terminate Process");
+            Console.WriteLine("3 : Terminate Process");
             Console.Write("> ");
             string input = Console.ReadLine();
 
@@ -127,12 +198,6 @@ namespace ProcMonTest
                         OpenProcess();
                         break;
                     case 3:
-                        PrintProcess();
-                        break;
-                    case 4:
-                        CloseProcess();
-                        break;
-                    case 5:
                         TerminateProcess();
                         break;
                 }
@@ -150,7 +215,7 @@ namespace ProcMonTest
 
             try
             {
-                processes.Add(Process.Start(path));
+                Process.Start(path);
             }
             catch (Exception e)
             {
@@ -165,30 +230,7 @@ namespace ProcMonTest
 
             try
             {
-                processes.Add(Process.GetProcessById(int.Parse(input)));
-            }
-            catch(Exception e)
-            {
-                Console.WriteLine(e.ToString());
-            }
-        }
-
-        public void PrintProcess()
-        {
-            for(int i = 0; i < processes.Count; i++)
-            {
-                Console.WriteLine(i + " : " + processes[i].Id + " | " + processes[i].ProcessName);
-            }
-        }
-
-        public void CloseProcess()
-        {
-            Console.Write("CloseProcess Index\n> ");
-            string input = Console.ReadLine();
-
-            try
-            {
-                processes.RemoveAt(int.Parse(input));
+                Process.GetProcessById(int.Parse(input));
             }
             catch(Exception e)
             {

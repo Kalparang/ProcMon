@@ -28,39 +28,34 @@ namespace ProcMonTest
             Win32.AllocConsole();
 
             new Thread(new ThreadStart(threadcontext)).Start();
+
+            this.Close();
         }
 
         void threadcontext()
         {
             var f = new FileTest();
             var p = new ProcessTest();
+            var r = new RegistryTest();
 
             while (true)
             {
                 try
                 {
-                    p.InputCommand();
-                    //string input;
-                    //int num;
-                    //Console.Write("File\n1 : Print List\n2 : Open File\n 3 : Close File\n4 : Delete File\n> ");
-                    //input = Console.ReadLine();
-                    //num = int.Parse(input);
-
-                    //switch (num)
-                    //{
-                    //    case 1:
-                    //        f.PrintList();
-                    //        break;
-                    //    case 2:
-                    //        f.OpenFile();
-                    //        break;
-                    //    case 3:
-                    //        f.CloseFile();
-                    //        break;
-                    //    case 4:
-                    //        f.DeleteFile();
-                    //        break;
-                    //}
+                    Console.WriteLine("1.Process\n2.File\n3.Registry\n>");
+                    string input = Console.ReadLine();
+                    switch(input)
+                    {
+                        case "1":
+                            p.InputCommand();
+                            break;
+                        case "2":
+                            f.InputCommand();
+                            break;
+                        case "3":
+                            r.InputCommand();
+                            break;
+                    }    
                 }
                 catch (Exception e)
                 {
