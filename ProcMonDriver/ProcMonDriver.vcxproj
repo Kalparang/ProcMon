@@ -101,6 +101,14 @@
     <Link>
       <AdditionalOptions>/INTEGRITYCHECK /kernel %(AdditionalOptions)</AdditionalOptions>
     </Link>
+    <ClCompile>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="ProcMonDriver.inf" />
