@@ -56,10 +56,12 @@
         <Button x:Name="Button_List_Process"
             Command="{Binding btn_cmd}"
             CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+            Visibility="Hidden"
             Content="Process" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="75"/>
         <Button x:Name="Button_List_DB"
             Command="{Binding btn_cmd}"
             CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+            Visibility="Hidden"
             Content="DB" HorizontalAlignment="Left" Margin="90,10,0,0" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.87,0.633"/>
         <DataGrid x:Name="ProcessGrid_DB"
             ItemsSource="{Binding Path=processModels_DB, Mode=OneWay, NotifyOnSourceUpdated=True, NotifyOnTargetUpdated=True}"

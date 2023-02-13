@@ -19,7 +19,7 @@ namespace ProcMon.ViewModel
     public class MainViewModel : INotifyPropertyChanged
     {
         Dictionary<long, Dictionary<string, Model.DriverModel>> TargetList;
-        DBManage db;
+        DBManage db = null;
         List<Thread> threads;
         List<IPC> iPCs;
         ProcessWatch processWatch;
@@ -62,18 +62,21 @@ namespace ProcMon.ViewModel
             set
             {
                 _processlist_db = value;
-                if (processlist_db == Visibility.Visible)
+                if (db != null)
                 {
-                    var processes = db.ReadProcesses();
-                    foreach (var p in processes)
+                    if (processlist_db == Visibility.Visible)
                     {
-                        p.fc += FilterChanged;
-                        processModels_DB.Add(p);
+                        var processes = db.ReadProcesses();
+                        foreach (var p in processes)
+                        {
+                            p.fc += FilterChanged;
+                            processModels_DB.Add(p);
+                        }
+                        DriverCollectionViewSource_DB.View.Refresh();
                     }
-                    DriverCollectionViewSource_DB.View.Refresh();
+                    else
+                        processModels_DB.Clear();
                 }
-                else
-                    processModels_DB.Clear();
                 OnPropertyChanged("processlist_db");
             }
         }
@@ -142,7 +145,7 @@ namespace ProcMon.ViewModel
             ListLock2 = new object();
             TargetList = new Dictionary<long, Dictionary<string, Model.DriverModel>>();
 
-            db = new DBManage(ProcessList);
+            //db = new DBManage(ProcessList);
 
             processlist_currentprocess = Visibility.Visible;
             processlist_db = Visibility.Hidden;
@@ -185,7 +188,7 @@ namespace ProcMon.ViewModel
 
             processWatch = new ProcessWatch();
             processWatch.re += ProcessEvent;
-            processWatch.re += db.ProcessEvent;
+            if(db != null) processWatch.re += db.ProcessEvent;
 
             threads = new List<Thread>();
             threads.Add(new Thread(new ThreadStart(AddDataThread)));
@@ -208,7 +211,7 @@ namespace ProcMon.ViewModel
         private void Current_Exit(object sender, ExitEventArgs e)
         {
             exitEvent.Set();
-            db.Exit();
+            if(db != null) db.Exit();
             for (pinvoke.DRIVER_TYPE i = 0; i < pinvoke.DRIVER_TYPE.LAST; i++)
                 DriverManage.StopService(i);
             DriverManage.DeleteServices();
@@ -538,13 +541,16 @@ namespace ProcMon.ViewModel
             }
             else if(dataGrid.Name == "ProcessGrid_DB")
             {
-                drivermodels_db.Clear();
-                Model.ProcessModel p = (Model.ProcessModel)dataGrid.SelectedItem;
-
-                var items = db.ReadItems(p.ProcessName);
-                foreach (var item in items)
+                if (db != null)
                 {
-                    drivermodels_db.Add(item);
+                    drivermodels_db.Clear();
+                    Model.ProcessModel p = (Model.ProcessModel)dataGrid.SelectedItem;
+
+                    var items = db.ReadItems(p.ProcessName);
+                    foreach (var item in items)
+                    {
+                        drivermodels_db.Add(item);
+                    }
                 }
             }
         }
@@ -813,7 +819,7 @@ namespace ProcMon.ViewModel
                     //Console.WriteLine(ProcessName);
                     continue;
                 }
-                db.insertQueue(Type, dataStruct);
+                if(db != null) db.insertQueue(Type, dataStruct);
 
                 //Application.Current.Dispatcher.Invoke(
                 //    new Action(() => driverModels.Add(driverModel))
