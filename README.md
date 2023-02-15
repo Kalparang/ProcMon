@@ -17,3 +17,12 @@ Windows의 Driver Filter에서 Process, File, Registry의 Access 이벤트를 �
 5. 재부팅
 6. ProcMon.exe를 관리자 권한으로 실행
 7. 테스트 모드를 해제하려면 2. 3. 재실행 후 bcdedit.exe -set TESTSIGNING ON
+
+
+## 레퍼런스
+
+Process - https://github.com/microsoft/Windows-driver-samples/tree/main/general/obcallback
+
+Registry - https://github.com/microsoft/Windows-driver-samples/tree/main/general/registry/regfltr
+
+File - https://github.com/apriorit/file-system-filter
